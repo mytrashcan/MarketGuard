@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: marketguard
+  datasource:
+    url: jdbc:h2:mem:marketguard;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop      # Phase 4에서 Flyway로 전환 예정
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+# 토스증권 Open API 연동 설정 (시크릿은 환경변수로 주입)
+toss:
+  base-url: https://openapi.tossinvest.com
+  auth-url: https://openapi.tossinvest.com/oauth2/token   # ⚠️ 실제 경로는 공식 문서 기준으로 교체
+  client-id: ${TOSS_CLIENT_ID:}
+  client-secret: ${TOSS_CLIENT_SECRET:}
+  account-id: ${TOSS_ACCOUNT_ID:}
+  watch-list:
+    - "005930"   # 삼성전자
+    - "000660"   # SK하이닉스
+
+# 수집 스케줄러: 실제 API 키가 없으면 enabled=false로 두면 앱은 정상 기동하고 수집만 건너뜀
+collector:
+  enabled: ${COLLECTOR_ENABLED:false}
+  poll-interval-ms: 60000
+
+# 탐지 룰 임계치
+detection:
+  volume-surge:
+    multiplier: 3.0   # 직전 평균 거래량 대비 N배 이상이면 이상
+    lookback: 20      # 평균 계산에 사용할 직전 스냅샷 수
+
+logging:
+  level:
+    com.marketguard: INFO
