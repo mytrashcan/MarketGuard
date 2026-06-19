@@ -6,12 +6,36 @@
     <title>MarketGuard — 시장감시 관제</title>
     <style>
         :root { color-scheme: light dark; }
+        * { box-sizing: border-box; }
         body { font-family: system-ui, "Segoe UI", sans-serif; margin: 0; background: #0f1115; color: #e8eaed; }
-        header { padding: 16px 24px; border-bottom: 1px solid #272b33; display: flex; align-items: center; gap: 16px; }
+        header { padding: 16px 24px; border-bottom: 1px solid #272b33; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         h1 { font-size: 18px; margin: 0; }
         .status { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: #3a2020; color: #ff8a8a; }
         .status.on { background: #16321f; color: #6ee7a0; }
-        main { padding: 16px 24px; }
+        .spacer { flex: 1; }
+        .updated { font-size: 12px; color: #6b7280; }
+
+        nav { display: flex; gap: 4px; padding: 10px 24px 0; border-bottom: 1px solid #272b33; }
+        .tab { background: none; border: none; color: #9aa0aa; font-size: 14px; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab.active { color: #e8eaed; border-bottom-color: #6ee7a0; font-weight: 600; }
+
+        main { padding: 18px 24px; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* 시세 보드 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+        .card { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; }
+        .card .nm { font-size: 15px; font-weight: 600; }
+        .card .cd { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+        .card .px { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .chg { display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 600; }
+        .chg.up { color: #ff6b6b; }    /* 한국식: 상승=빨강 */
+        .chg.down { color: #5b9dff; }  /* 하락=파랑 */
+        .chg.flat { color: #6b7280; }
+        .note { color: #9aa0aa; background: #161922; border: 1px dashed #2c313b; border-radius: 12px; padding: 20px; }
+
+        /* 이상거래 */
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #21242b; }
         th { color: #9aa0aa; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
@@ -28,30 +52,91 @@
 <body>
 <header>
     <h1>🛡️ MarketGuard 관제</h1>
+    <span class="spacer"></span>
+    <span id="priceUpdated" class="updated"></span>
     <span id="status" class="status">● 연결 끊김</span>
-    <span style="font-size:13px;color:#6b7280;">이상거래 실시간 탐지</span>
 </header>
+
+<nav>
+    <button class="tab active" data-tab="prices">📈 시세 보드</button>
+    <button class="tab" data-tab="anomalies">🚨 이상거래 탐지</button>
+</nav>
+
 <main>
-    <table>
-        <thead>
-        <tr><th>시각</th><th>종목</th><th>룰</th><th>심각도</th><th>메시지</th></tr>
-        </thead>
-        <tbody id="rows">
-        <tr><td colspan="5" class="empty">탐지 내역을 기다리는 중…</td></tr>
-        </tbody>
-    </table>
+    <section id="prices" class="panel active">
+        <div id="priceNote" class="note" style="display:none;">
+            시세 데이터가 없습니다. 토스 API 키(<code>TOSS_CLIENT_ID</code>/<code>TOSS_CLIENT_SECRET</code>) 설정과 장 운영 시간을 확인하세요.
+        </div>
+        <div id="priceGrid" class="grid"></div>
+    </section>
+
+    <section id="anomalies" class="panel">
+        <table>
+            <thead>
+            <tr><th>시각</th><th>종목</th><th>룰</th><th>심각도</th><th>메시지</th></tr>
+            </thead>
+            <tbody id="rows">
+            <tr><td colspan="5" class="empty">탐지 내역을 기다리는 중…</td></tr>
+            </tbody>
+        </table>
+    </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
 <script>
+    // ----- 탭 전환 -----
+    document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.tab).classList.add("active");
+    }));
+
+    // ----- 시세 보드 -----
+    const NAMES = {
+        "005930": "삼성전자", "000660": "SK하이닉스", "373220": "LG에너지솔루션",
+        "207940": "삼성바이오로직스", "005380": "현대차", "000270": "기아",
+        "005490": "POSCO홀딩스", "035420": "NAVER", "035720": "카카오", "105560": "KB금융"
+    };
+    let prevPrices = {};
+
+    function renderPrices(list) {
+        const grid = document.getElementById("priceGrid");
+        const note = document.getElementById("priceNote");
+        if (!list || list.length === 0) { grid.innerHTML = ""; note.style.display = "block"; return; }
+        note.style.display = "none";
+        grid.innerHTML = list.map(p => {
+            const name = NAMES[p.code] || p.code;
+            const prev = prevPrices[p.code];
+            let badge = '<span class="chg flat">–</span>';
+            if (prev != null && prev !== 0) {
+                const pct = (p.price - prev) / prev * 100;
+                const cls = pct > 0 ? "up" : (pct < 0 ? "down" : "flat");
+                const arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "–");
+                badge = `<span class="chg ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>`;
+            }
+            return `<div class="card"><div class="nm">${name}</div><div class="cd">${p.code}</div>` +
+                   `<div class="px">${Number(p.price).toLocaleString("ko-KR")}</div>${badge}</div>`;
+        }).join("");
+        list.forEach(p => { prevPrices[p.code] = p.price; });
+        document.getElementById("priceUpdated").textContent = "시세 갱신 " + new Date().toLocaleTimeString("ko-KR");
+    }
+
+    function loadPrices() {
+        fetch("/api/prices/live").then(r => r.json()).then(renderPrices).catch(() => {});
+    }
+    loadPrices();
+    setInterval(loadPrices, 7000);
+
+    // ----- 이상거래 탐지 -----
     const RULE_LABELS = {
         PRICE_LIMIT: "가격제한폭", PRICE_SPIKE: "가격 급변동",
         VOLUME_SURGE: "거래량 급증", ORDERBOOK_IMBALANCE: "호가 불균형",
         INVESTMENT_WARNING: "투자경고"
     };
     const rows = document.getElementById("rows");
-    let empty = true;
+    let anomalyEmpty = true;
 
     function fmtTime(iso) {
         if (!iso) return "-";
@@ -59,8 +144,8 @@
         return isNaN(d) ? iso : d.toLocaleTimeString("ko-KR");
     }
 
-    function addRow(a, isNew) {
-        if (empty) { rows.innerHTML = ""; empty = false; }
+    function addAnomaly(a, isNew) {
+        if (anomalyEmpty) { rows.innerHTML = ""; anomalyEmpty = false; }
         const tr = document.createElement("tr");
         if (isNew) tr.className = "new";
         tr.innerHTML =
@@ -78,19 +163,16 @@
         el.className = "status" + (on ? " on" : "");
     }
 
-    // 1) 과거 탐지 내역 로드
-    fetch("/api/anomalies")
-        .then(r => r.json())
-        .then(list => list.slice().reverse().forEach(a => addRow(a, false)))
+    fetch("/api/anomalies").then(r => r.json())
+        .then(list => list.slice().reverse().forEach(a => addAnomaly(a, false)))
         .catch(() => {});
 
-    // 2) 실시간 구독
     function connect() {
         const stomp = Stomp.over(new SockJS("/ws"));
         stomp.debug = null;
         stomp.connect({}, () => {
             setStatus(true);
-            stomp.subscribe("/topic/anomalies", msg => addRow(JSON.parse(msg.body), true));
+            stomp.subscribe("/topic/anomalies", msg => addAnomaly(JSON.parse(msg.body), true));
         }, () => { setStatus(false); setTimeout(connect, 3000); });
     }
     connect();

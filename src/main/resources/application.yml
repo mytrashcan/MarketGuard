@@ -31,9 +31,17 @@ toss:
   client-id: ${TOSS_CLIENT_ID:}
   client-secret: ${TOSS_CLIENT_SECRET:}
   account-id: ${TOSS_ACCOUNT_ID:}   # 선택: 계좌/주문 API 전용. 시세만 쓰는 본 프로젝트에선 불필요
-  watch-list:
+  watch-list:                  # 감시 대상 대형주 (KOSPI 시총 상위)
     - "005930"   # 삼성전자
     - "000660"   # SK하이닉스
+    - "373220"   # LG에너지솔루션
+    - "207940"   # 삼성바이오로직스
+    - "005380"   # 현대차
+    - "000270"   # 기아
+    - "005490"   # POSCO홀딩스
+    - "035420"   # NAVER
+    - "035720"   # 카카오
+    - "105560"   # KB금융
 
 # 수집 스케줄러: 실제 API 키가 없으면 enabled=false로 두면 앱은 정상 기동하고 수집만 건너뜀
 collector:
