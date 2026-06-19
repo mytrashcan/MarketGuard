@@ -13,7 +13,7 @@
         ▼
 ① 수집 계층 (collector)        API 클라이언트 · 토큰 관리(자동 갱신) · 폴링 스케줄러
         ▼
-② 탐지 엔진 (detection)        DetectionRule 전략 패턴 — 거래량 급증 / (예정) 상하한가·호가불균형·투자경고
+② 탐지 엔진 (detection)        DetectionRule 전략 패턴 — 가격 급변동 / (예정) 상하한가·호가불균형·거래량
         ▼
 ③ 알림 · 조회 (dashboard)      조회 API · (예정) WebSocket 실시간 푸시
         ▼
@@ -46,12 +46,11 @@ com.marketguard
 # 1) 그대로 실행 (API 키 없이도 기동 — 수집은 비활성)
 ./gradlew bootRun
 
-# 2) 실제 수집 활성화 (토스 API 키 발급 후)
-export TOSS_CLIENT_ID=...        # Windows PowerShell: $env:TOSS_CLIENT_ID="..."
-export TOSS_CLIENT_SECRET=...
-export TOSS_ACCOUNT_ID=...
-export COLLECTOR_ENABLED=true
+# 2) 실제 수집 활성화 (토스 client id/secret 발급 후) — PowerShell 기준
+$env:TOSS_CLIENT_ID="..."; $env:TOSS_CLIENT_SECRET="..."
+$env:COLLECTOR_ENABLED="true"
 ./gradlew bootRun
+# account-id는 시세 조회엔 불필요(계좌/주문 API 전용)
 ```
 
 - H2 콘솔: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:marketguard`)
@@ -60,16 +59,17 @@ export COLLECTOR_ENABLED=true
   - `GET /api/stocks/{code}/snapshots` — 특정 종목 최근 시세
 - 헬스체크: `GET /actuator/health`
 
-> 토스 API의 실제 엔드포인트 경로와 응답 스키마는 공식 OpenAPI 스펙
-> (`https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`)에 맞춰
-> `TossMarketDataClient` / `PriceResponse` / `TossTokenManager`를 교체하세요.
+> 토큰 발급(`POST /oauth2/token`)과 시세 조회(`GET /api/v1/prices?symbols=...`)는 공식 OpenAPI 스펙에 맞춰 구현돼 있습니다.
+> 거래량·호가·캔들 등 추가 데이터는 해당 엔드포인트 스펙에 맞춰 확장하세요
+> (스펙: `https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`).
 
 ## 탐지 룰
 
 | 룰 | 설명 | 상태 |
 |---|---|---|
-| 거래량 급증 | 현재 거래량이 직전 평균의 N배 이상 | ✅ 구현 |
+| 단기 가격 급변동 | 현재가가 직전 평균 대비 ±N% 이상 변동 | ✅ 구현 |
 | 가격제한폭 도달 | 상·하한가 도달 | ⏳ 예정 |
+| 거래량 급증 | 현재 거래량이 직전 평균의 N배 이상 (캔들 API 필요) | ⏳ 예정 |
 | 호가 불균형 | 매수/매도 잔량 비율 임계치 | ⏳ 예정 |
 | 투자경고 종목 | 종목 경고 알림 연동 | ⏳ 예정 |
 

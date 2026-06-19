@@ -36,15 +36,11 @@ public class PriceSnapshot {
     private BigDecimal price;
 
     @Column(nullable = false)
-    private long volume;
-
-    @Column(nullable = false)
     private Instant capturedAt;
 
-    public PriceSnapshot(String stockCode, BigDecimal price, long volume, Instant capturedAt) {
+    public PriceSnapshot(String stockCode, BigDecimal price, Instant capturedAt) {
         this.stockCode = stockCode;
         this.price = price;
-        this.volume = volume;
         this.capturedAt = capturedAt;
     }
 }

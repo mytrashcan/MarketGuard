@@ -17,7 +17,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 감시 대상 종목의 시세를 주기적으로 수집하고, 룰 엔진으로 이상거래를 탐지한다.
+ * 감시 대상 종목의 시세를 주기적으로 배치 수집하고, 룰 엔진으로 이상거래를 탐지한다.
  */
 @Slf4j
 @Component
@@ -55,21 +55,30 @@ public class MarketDataCollector {
         if (watchList == null || watchList.isEmpty()) {
             return;
         }
-        for (String code : watchList) {
+
+        List<PriceSnapshot> fetched;
+        try {
+            fetched = marketDataClient.fetchPrices(watchList);   // 배치로 한 번에 조회
+        } catch (Exception e) {
+            // 외부 API 호출 실패는 이번 사이클만 건너뜀 (Phase 4에서 Resilience4j로 강화)
+            log.warn("시세 배치 수집 실패: {}", e.getMessage());
+            return;
+        }
+
+        for (PriceSnapshot snapshot : fetched) {
             try {
-                collectOne(code);
+                detect(snapshot);
             } catch (Exception e) {
-                // 한 종목 실패가 전체 수집을 멈추지 않도록 격리(Phase 4에서 Resilience4j로 강화)
-                log.warn("[{}] 수집 실패: {}", code, e.getMessage());
+                log.warn("[{}] 탐지 처리 실패: {}", snapshot.getStockCode(), e.getMessage());
             }
         }
     }
 
-    private void collectOne(String code) {
-        PriceSnapshot saved = snapshotRepository.save(marketDataClient.fetchPrice(code));
+    private void detect(PriceSnapshot fetched) {
+        PriceSnapshot saved = snapshotRepository.save(fetched);
 
         List<PriceSnapshot> recent = snapshotRepository
-                .findByStockCodeOrderByCapturedAtDesc(code, Limit.of(RECENT_WINDOW))
+                .findByStockCodeOrderByCapturedAtDesc(saved.getStockCode(), Limit.of(RECENT_WINDOW))
                 .stream()
                 .filter(snapshot -> !snapshot.getId().equals(saved.getId()))
                 .toList();

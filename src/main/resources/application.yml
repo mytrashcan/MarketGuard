@@ -27,10 +27,10 @@ management:
 # 토스증권 Open API 연동 설정 (시크릿은 환경변수로 주입)
 toss:
   base-url: https://openapi.tossinvest.com
-  auth-url: https://openapi.tossinvest.com/oauth2/token   # ⚠️ 실제 경로는 공식 문서 기준으로 교체
+  auth-url: https://openapi.tossinvest.com/oauth2/token   # POST /oauth2/token (grant_type=client_credentials)
   client-id: ${TOSS_CLIENT_ID:}
   client-secret: ${TOSS_CLIENT_SECRET:}
-  account-id: ${TOSS_ACCOUNT_ID:}
+  account-id: ${TOSS_ACCOUNT_ID:}   # 선택: 계좌/주문 API 전용. 시세만 쓰는 본 프로젝트에선 불필요
   watch-list:
     - "005930"   # 삼성전자
     - "000660"   # SK하이닉스
@@ -42,9 +42,9 @@ collector:
 
 # 탐지 룰 임계치
 detection:
-  volume-surge:
-    multiplier: 3.0   # 직전 평균 거래량 대비 N배 이상이면 이상
-    lookback: 20      # 평균 계산에 사용할 직전 스냅샷 수
+  price-spike:
+    threshold-percent: 3.0   # 직전 평균가 대비 ±N% 이상 변동이면 이상
+    lookback: 20             # 평균 계산에 사용할 직전 스냅샷 수
 
 logging:
   level:
