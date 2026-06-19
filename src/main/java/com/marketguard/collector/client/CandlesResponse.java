@@ -16,6 +16,9 @@ public record CandlesResponse(Result result) {
 
     public record CandleData(
             @JsonProperty("timestamp") Instant timestamp,
+            @JsonProperty("openPrice") BigDecimal openPrice,
+            @JsonProperty("highPrice") BigDecimal highPrice,
+            @JsonProperty("lowPrice") BigDecimal lowPrice,
             @JsonProperty("closePrice") BigDecimal closePrice,
             @JsonProperty("volume") long volume
     ) {
@@ -26,7 +29,8 @@ public record CandlesResponse(Result result) {
             return List.of();
         }
         return result.candles().stream()
-                .map(candle -> new Candle(candle.timestamp(), candle.closePrice(), candle.volume()))
+                .map(c -> new Candle(
+                        c.timestamp(), c.openPrice(), c.highPrice(), c.lowPrice(), c.closePrice(), c.volume()))
                 .toList();
     }
 }

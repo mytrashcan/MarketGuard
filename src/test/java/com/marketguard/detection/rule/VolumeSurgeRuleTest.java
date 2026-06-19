@@ -19,7 +19,8 @@ class VolumeSurgeRuleTest {
     private final VolumeSurgeRule rule = new VolumeSurgeRule(new VolumeSurgeProperties(3.0, 20));
 
     private Candle candle(int minuteOffset, long volume) {
-        return new Candle(Instant.now().plusSeconds(minuteOffset * 60L), new BigDecimal("70000"), volume);
+        BigDecimal p = new BigDecimal("70000");
+        return new Candle(Instant.now().plusSeconds(minuteOffset * 60L), p, p, p, p, volume);
     }
 
     private DetectionContext ctx(List<Candle> candles) {

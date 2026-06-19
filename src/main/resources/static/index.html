@@ -22,10 +22,12 @@
         main { padding: 18px 24px; }
         .panel { display: none; }
         .panel.active { display: block; }
+        .hint { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
 
         /* 시세 보드 */
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
-        .card { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; }
+        .card { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
+        .card:hover { border-color: #3a4150; }
         .card .nm { font-size: 15px; font-weight: 600; }
         .card .cd { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
         .card .px { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -34,6 +36,14 @@
         .chg.down { color: #5b9dff; }  /* 하락=파랑 */
         .chg.flat { color: #6b7280; }
         .note { color: #9aa0aa; background: #161922; border: 1px dashed #2c313b; border-radius: 12px; padding: 20px; }
+
+        /* 차트 */
+        .chartbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        select { background: #161922; color: #e8eaed; border: 1px solid #21242b; border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+        .seg { display: inline-flex; border: 1px solid #21242b; border-radius: 8px; overflow: hidden; }
+        .iv { background: #161922; color: #9aa0aa; border: none; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+        .iv.active { background: #232836; color: #e8eaed; }
+        #chartContainer { height: 420px; border: 1px solid #21242b; border-radius: 12px; }
 
         /* 이상거래 */
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -59,15 +69,30 @@
 
 <nav>
     <button class="tab active" data-tab="prices">📈 시세 보드</button>
+    <button class="tab" data-tab="chart">📊 차트</button>
     <button class="tab" data-tab="anomalies">🚨 이상거래 탐지</button>
 </nav>
 
 <main>
     <section id="prices" class="panel active">
+        <p class="hint">등락률은 <b>당일 시가(시작가) 대비</b> · 카드를 클릭하면 캔들 차트로 이동</p>
         <div id="priceNote" class="note" style="display:none;">
             시세 데이터가 없습니다. 토스 API 키(<code>TOSS_CLIENT_ID</code>/<code>TOSS_CLIENT_SECRET</code>) 설정과 장 운영 시간을 확인하세요.
         </div>
         <div id="priceGrid" class="grid"></div>
+    </section>
+
+    <section id="chart" class="panel">
+        <div class="chartbar">
+            <select id="chartSymbol"></select>
+            <span class="seg">
+                <button class="iv active" data-iv="1m">1분봉</button>
+                <button class="iv" data-iv="1d">일봉</button>
+            </span>
+            <span id="chartTitle" class="updated"></span>
+        </div>
+        <div id="chartNote" class="note" style="display:none;">캔들 데이터가 없습니다. (장 운영 시간/키 확인)</div>
+        <div id="chartContainer"></div>
     </section>
 
     <section id="anomalies" class="panel">
@@ -84,23 +109,23 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-    // ----- 탭 전환 -----
-    document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        document.getElementById(btn.dataset.tab).classList.add("active");
-    }));
-
-    // ----- 시세 보드 -----
     const NAMES = {
         "005930": "삼성전자", "000660": "SK하이닉스", "373220": "LG에너지솔루션",
         "207940": "삼성바이오로직스", "005380": "현대차", "000270": "기아",
         "005490": "POSCO홀딩스", "035420": "NAVER", "035720": "카카오", "105560": "KB금융"
     };
-    let prevPrices = {};
 
+    // ----- 탭 전환 -----
+    function activateTab(name) {
+        document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+        document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === name));
+        if (name === "chart") ensureChart();
+    }
+    document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
+
+    // ----- 시세 보드 (등락률 = 당일 시가 대비, 서버 계산값) -----
     function renderPrices(list) {
         const grid = document.getElementById("priceGrid");
         const note = document.getElementById("priceNote");
@@ -108,26 +133,86 @@
         note.style.display = "none";
         grid.innerHTML = list.map(p => {
             const name = NAMES[p.code] || p.code;
-            const prev = prevPrices[p.code];
+            const pct = p.changePercent;
             let badge = '<span class="chg flat">–</span>';
-            if (prev != null && prev !== 0) {
-                const pct = (p.price - prev) / prev * 100;
+            if (pct != null) {
                 const cls = pct > 0 ? "up" : (pct < 0 ? "down" : "flat");
                 const arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "–");
                 badge = `<span class="chg ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>`;
             }
-            return `<div class="card"><div class="nm">${name}</div><div class="cd">${p.code}</div>` +
+            return `<div class="card" data-code="${p.code}"><div class="nm">${name}</div><div class="cd">${p.code}</div>` +
                    `<div class="px">${Number(p.price).toLocaleString("ko-KR")}</div>${badge}</div>`;
         }).join("");
-        list.forEach(p => { prevPrices[p.code] = p.price; });
         document.getElementById("priceUpdated").textContent = "시세 갱신 " + new Date().toLocaleTimeString("ko-KR");
     }
 
-    function loadPrices() {
-        fetch("/api/prices/live").then(r => r.json()).then(renderPrices).catch(() => {});
+    document.getElementById("priceGrid").addEventListener("click", e => {
+        const card = e.target.closest(".card");
+        if (!card) return;
+        document.getElementById("chartSymbol").value = card.dataset.code;
+        activateTab("chart");
+        loadChart();
+    });
+
+    fetch("/api/prices/live").then(r => r.json()).then(renderPrices).catch(() => {});
+
+    // ----- 캔들 차트 -----
+    let chart, candleSeries, volumeSeries, chartReady = false, interval = "1m";
+
+    function ensureChart() {
+        if (chartReady || typeof LightweightCharts === "undefined") return;
+        const el = document.getElementById("chartContainer");
+        chart = LightweightCharts.createChart(el, {
+            layout: { background: { color: "transparent" }, textColor: "#9aa0aa" },
+            grid: { vertLines: { color: "#1b1f27" }, horzLines: { color: "#1b1f27" } },
+            timeScale: { timeVisible: true, secondsVisible: false, borderColor: "#272b33" },
+            rightPriceScale: { borderColor: "#272b33" },
+            width: el.clientWidth, height: 420
+        });
+        candleSeries = chart.addCandlestickSeries({
+            upColor: "#ff6b6b", downColor: "#5b9dff", borderVisible: false,
+            wickUpColor: "#ff6b6b", wickDownColor: "#5b9dff"
+        });
+        volumeSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "" });
+        volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+        window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
+        chartReady = true;
+        loadChart();
     }
-    loadPrices();
-    setInterval(loadPrices, 7000);
+
+    function loadChart() {
+        if (!chartReady) return;
+        const code = document.getElementById("chartSymbol").value;
+        const count = interval === "1m" ? 120 : 120;
+        fetch(`/api/stocks/${code}/candles?interval=${interval}&count=${count}`)
+            .then(r => r.json())
+            .then(data => {
+                const note = document.getElementById("chartNote");
+                if (!data || data.length === 0) { note.style.display = "block"; candleSeries.setData([]); volumeSeries.setData([]); return; }
+                note.style.display = "none";
+                const byTime = new Map();
+                data.forEach(c => byTime.set(Math.floor(new Date(c.timestamp).getTime() / 1000), c));
+                const rows = [...byTime.entries()].sort((a, b) => a[0] - b[0]);
+                candleSeries.setData(rows.map(([t, c]) => ({ time: t, open: +c.open, high: +c.high, low: +c.low, close: +c.close })));
+                volumeSeries.setData(rows.map(([t, c]) => ({ time: t, value: c.volume, color: (+c.close >= +c.open) ? "#ff6b6b55" : "#5b9dff55" })));
+                chart.timeScale().fitContent();
+                const nm = NAMES[code] || code;
+                document.getElementById("chartTitle").textContent = `${nm} (${code}) · ${interval === "1m" ? "1분봉" : "일봉"}`;
+            })
+            .catch(() => {});
+    }
+
+    (function initChartControls() {
+        const sel = document.getElementById("chartSymbol");
+        sel.innerHTML = Object.entries(NAMES).map(([c, n]) => `<option value="${c}">${n} (${c})</option>`).join("");
+        sel.addEventListener("change", loadChart);
+        document.querySelectorAll(".iv").forEach(b => b.addEventListener("click", () => {
+            document.querySelectorAll(".iv").forEach(x => x.classList.remove("active"));
+            b.classList.add("active");
+            interval = b.dataset.iv;
+            loadChart();
+        }));
+    })();
 
     // ----- 이상거래 탐지 -----
     const RULE_LABELS = {
@@ -167,11 +252,13 @@
         .then(list => list.slice().reverse().forEach(a => addAnomaly(a, false)))
         .catch(() => {});
 
+    // ----- WebSocket (시세 + 이상거래 실시간) -----
     function connect() {
         const stomp = Stomp.over(new SockJS("/ws"));
         stomp.debug = null;
         stomp.connect({}, () => {
             setStatus(true);
+            stomp.subscribe("/topic/prices", msg => renderPrices(JSON.parse(msg.body)));
             stomp.subscribe("/topic/anomalies", msg => addAnomaly(JSON.parse(msg.body), true));
         }, () => { setStatus(false); setTimeout(connect, 3000); });
     }
