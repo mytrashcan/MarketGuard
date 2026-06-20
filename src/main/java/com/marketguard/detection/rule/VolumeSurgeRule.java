@@ -6,6 +6,8 @@ import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.DetectionContext;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -13,9 +15,12 @@ import org.springframework.stereotype.Component;
 
 /**
  * 거래량 급증 탐지(캔들 기반): 가장 최근 봉의 거래량이 직전 봉 평균의 multiplier배 이상이면 이상.
+ * 단, 최근 봉이 오래됐으면(장 마감/공휴일 등 스테일) 오탐 방지를 위해 탐지하지 않는다.
  */
 @Component
 public class VolumeSurgeRule implements DetectionRule {
+
+    private static final long STALE_MINUTES = 5;
 
     private final VolumeSurgeProperties props;
 
@@ -38,6 +43,10 @@ public class VolumeSurgeRule implements DetectionRule {
                 .sorted(Comparator.comparing(Candle::timestamp))
                 .toList();
         Candle latest = sorted.get(sorted.size() - 1);
+        if (latest.timestamp() != null
+                && Duration.between(latest.timestamp(), Instant.now()).toMinutes() > STALE_MINUTES) {
+            return Optional.empty();   // 최근 봉이 오래됨(장 마감/공휴일 등) → 스테일 오탐 방지
+        }
         List<Candle> previous = sorted.subList(0, sorted.size() - 1);
 
         double average = previous.stream()

@@ -57,6 +57,8 @@ scan:
   # 전 시장 감시: KRX 전종목 CSV(또는 코드 목록) 파일 경로를 지정하면 그 안의 6자리 코드 전부를 스캔.
   # 비우면 classpath:symbols.txt(시연 시드)를 사용. KRX 정보데이터시스템에서 전종목 CSV를 받아 경로만 넣으세요.
   symbols-file: ${SCAN_SYMBOLS_FILE:}
+  # 정규장(평일 09:00~15:30 KST)에만 스캔. 장 마감 중 직전 장 데이터 오탐 방지. 테스트로 강제 스캔하려면 false.
+  market-hours-only: ${SCAN_MARKET_HOURS_ONLY:true}
 
 # 실시간 시세 보드: watch-list 종목을 주기적으로 받아 WebSocket(/topic/prices)으로 푸시
 board:
@@ -65,6 +67,7 @@ board:
 
 # 탐지 룰 임계치
 detection:
+  cooldown-ms: 600000        # 같은 (종목,룰) 신호 재발생 억제 시간(ms). 동일 알림 도배 방지.
   price-spike:
     threshold-percent: 3.0   # 직전 평균가 대비 ±N% 이상 변동이면 이상
     lookback: 20             # 평균 계산에 사용할 직전 스냅샷 수
