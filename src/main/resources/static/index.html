@@ -24,17 +24,21 @@
         .panel.active { display: block; }
         .hint { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
 
-        /* 시세 보드 */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+        /* 시세 보드 (종목 블록) */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
         .card { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
         .card:hover { border-color: #3a4150; }
         .card .nm { font-size: 15px; font-weight: 600; }
-        .card .cd { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
-        .card .px { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .chg { display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 600; }
+        .card .cd { font-size: 11px; color: #6b7280; }
+        .card .ctag { color: #ffc14d; font-weight: 600; }
+        .card .px { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; }
+        .chg { display: inline-block; font-size: 13px; font-weight: 600; margin-top: 2px; }
         .chg.up { color: #ff6b6b; }    /* 한국식: 상승=빨강 */
         .chg.down { color: #5b9dff; }  /* 하락=파랑 */
         .chg.flat { color: #6b7280; }
+        .mini-wrap { height: 48px; margin: 8px 0 6px; }
+        .mini { display: block; width: 100%; height: 48px; }
+        .vol { font-size: 12px; color: #9aa0aa; font-variant-numeric: tabular-nums; }
         .note { color: #9aa0aa; background: #161922; border: 1px dashed #2c313b; border-radius: 12px; padding: 20px; }
 
         /* 차트 */
@@ -57,6 +61,14 @@
         .sev.INFO { background: #20262e; color: #9aa0aa; }
         .empty { color: #6b7280; padding: 24px 12px; }
         code { color: #8ab4f8; }
+
+        /* 룰 설명 */
+        .gloss { display: grid; gap: 12px; max-width: 840px; }
+        .term { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; }
+        .term h3 { margin: 0 0 6px; font-size: 15px; }
+        .term p { margin: 0; font-size: 13.5px; color: #c4c8cf; line-height: 1.65; }
+        .term b.up { color: #ff6b6b; }
+        .term b.down { color: #5b9dff; }
     </style>
 </head>
 <body>
@@ -71,11 +83,12 @@
     <button class="tab active" data-tab="prices">📈 시세 보드</button>
     <button class="tab" data-tab="chart">📊 차트</button>
     <button class="tab" data-tab="anomalies">🚨 이상거래 탐지</button>
+    <button class="tab" data-tab="help">📖 룰 설명</button>
 </nav>
 
 <main>
     <section id="prices" class="panel active">
-        <p class="hint">등락률은 <b>당일 시가(시작가) 대비</b> · 카드를 클릭하면 캔들 차트로 이동</p>
+        <p class="hint">등락률은 <b>전일 종가 대비</b> · 카드를 클릭하면 캔들 차트로 이동</p>
         <div id="priceNote" class="note" style="display:none;">
             시세 데이터가 없습니다. 토스 API 키(<code>TOSS_CLIENT_ID</code>/<code>TOSS_CLIENT_SECRET</code>) 설정과 장 운영 시간을 확인하세요.
         </div>
@@ -105,6 +118,20 @@
             </tbody>
         </table>
     </section>
+
+    <section id="help" class="panel">
+        <p class="hint">대시보드 용어와 이상거래 탐지 룰을 쉽게 설명합니다.</p>
+        <div class="gloss">
+            <div class="term"><h3>등락률 (전일 종가 대비)</h3><p>오늘 현재가가 <b>전일 종가</b> 대비 얼마나 오르내렸는지(%) — 증권사 앱과 같은 기준입니다. <b class="up">빨강 ▲</b> 상승 / <b class="down">파랑 ▼</b> 하락(한국식 색).</p></div>
+            <div class="term"><h3>거래량</h3><p>당일 체결된 주식 수량(누적). 평소보다 갑자기 급증하면 이상 신호로 봅니다.</p></div>
+            <div class="term"><h3>봉(캔들)</h3><p>일정 기간(1분·1일)의 <b>시가·고가·저가·종가</b>를 막대 하나로 표현. 몸통은 시가~종가, 위아래 꼬리는 고가·저가입니다.</p></div>
+            <div class="term"><h3>🚨 가격 급변동 (PRICE_SPIKE)</h3><p>현재가가 직전 평균가 대비 ±일정 % 이상 급등/급락. 단기 이상 변동을 잡습니다.</p></div>
+            <div class="term"><h3>🚨 가격제한폭 도달 (PRICE_LIMIT)</h3><p>하루 최대 변동폭(±30%)인 <b>상한가/하한가</b>에 도달하거나 근접. 과열·패닉 신호.</p></div>
+            <div class="term"><h3>🚨 호가 불균형 (ORDERBOOK_IMBALANCE)</h3><p>호가창에서 <b>사겠다고 걸어둔 대기물량(매수 잔량) 합</b>과 <b>팔겠다고 걸어둔 물량(매도 잔량) 합</b>을 비교합니다. 매수 잔량이 압도적이면 <b class="up">매수 우위</b>, 매도 잔량이 크면 <b class="down">매도 우위</b>. 한쪽으로 비정상적으로 쏠리면 허수호가·시세조종 가능성을 의심합니다.</p></div>
+            <div class="term"><h3>🚨 거래량 급증 (VOLUME_SURGE)</h3><p>최근 봉의 거래량이 직전 평균의 N배 이상. 갑작스런 매매 폭증을 포착합니다.</p></div>
+            <div class="term"><h3>심각도 (Severity)</h3><p><b style="color:#ffc14d">WARNING</b> 주의 · <b class="up">CRITICAL</b> 심각(임계치의 2배 초과 등). 색이 진할수록 위험.</p></div>
+        </div>
+    </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
@@ -125,25 +152,62 @@
     }
     document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
 
-    // ----- 시세 보드 (등락률 = 당일 시가 대비, 서버 계산값) -----
-    function renderPrices(list) {
+    // ----- 시세 보드 (종목 블록: 현재가 · 등락%(전일종가 대비) · 거래량 · 미니 봉) -----
+    const cardEls = {};
+
+    function miniCandles(candles) {
+        if (!candles || candles.length < 2) return "";
+        const cs = candles.slice(-30);
+        const W = 180, H = 48;
+        let min = Infinity, max = -Infinity;
+        cs.forEach(c => { min = Math.min(min, +c.low); max = Math.max(max, +c.high); });
+        const range = (max - min) || 1;
+        const n = cs.length, cw = W / n, bw = Math.max(1.2, cw * 0.6);
+        const y = v => H - ((v - min) / range) * H;
+        let s = "";
+        cs.forEach((c, i) => {
+            const x = i * cw + cw / 2, o = +c.open, cl = +c.close, hi = +c.high, lo = +c.low;
+            const col = cl >= o ? "#ff6b6b" : "#5b9dff";
+            const top = Math.min(y(o), y(cl)), bh = Math.max(1, Math.abs(y(cl) - y(o)));
+            s += `<line x1="${x.toFixed(1)}" y1="${y(hi).toFixed(1)}" x2="${x.toFixed(1)}" y2="${y(lo).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+            s += `<rect x="${(x - bw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}"/>`;
+        });
+        return `<svg class="mini" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${s}</svg>`;
+    }
+
+    function cardSkeleton(code) {
+        const el = document.createElement("div");
+        el.className = "card";
+        el.dataset.code = code;
+        el.innerHTML = `<div class="nm">${NAMES[code] || code}</div><div class="cd">${code} <span class="ctag"></span></div>` +
+            `<div class="px">–</div><div class="chg flat">–</div>` +
+            `<div class="mini-wrap"></div><div class="vol">–</div>`;
+        return el;
+    }
+
+    function renderBoard(list) {
         const grid = document.getElementById("priceGrid");
         const note = document.getElementById("priceNote");
-        if (!list || list.length === 0) { grid.innerHTML = ""; note.style.display = "block"; return; }
+        if (!list || list.length === 0) { note.style.display = "block"; return; }
         note.style.display = "none";
-        grid.innerHTML = list.map(p => {
-            const name = NAMES[p.code] || p.code;
-            const pct = p.changePercent;
-            let badge = '<span class="chg flat">–</span>';
+        list.forEach(it => {
+            let el = cardEls[it.code];
+            if (!el) { el = cardSkeleton(it.code); grid.appendChild(el); cardEls[it.code] = el; }
+            el.querySelector(".px").textContent = it.price != null ? Number(it.price).toLocaleString("ko-KR") : "–";
+            const chg = el.querySelector(".chg"), pct = it.changePercent;
             if (pct != null) {
                 const cls = pct > 0 ? "up" : (pct < 0 ? "down" : "flat");
                 const arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "–");
-                badge = `<span class="chg ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>`;
-            }
-            return `<div class="card" data-code="${p.code}"><div class="nm">${name}</div><div class="cd">${p.code}</div>` +
-                   `<div class="px">${Number(p.price).toLocaleString("ko-KR")}</div>${badge}</div>`;
-        }).join("");
-        document.getElementById("priceUpdated").textContent = "시세 갱신 " + new Date().toLocaleTimeString("ko-KR");
+                chg.className = "chg " + cls;
+                chg.textContent = `${arrow} ${Math.abs(pct).toFixed(2)}%`;
+            } else { chg.className = "chg flat"; chg.textContent = "–"; }
+            el.querySelector(".vol").textContent = "거래량 " + (it.volume ? Number(it.volume).toLocaleString("ko-KR") : "–");
+            el.querySelector(".mini-wrap").innerHTML = miniCandles(it.candles);
+            el.querySelector(".ctag").textContent = it.closed ? "· 종가" : "";
+        });
+        const closed = list.some(it => it.closed);
+        document.getElementById("priceUpdated").textContent =
+            (closed ? "장 마감 · 종가 기준 " : "시세 갱신 ") + new Date().toLocaleTimeString("ko-KR");
     }
 
     document.getElementById("priceGrid").addEventListener("click", e => {
@@ -154,9 +218,9 @@
         loadChart();
     });
 
-    fetch("/api/prices/live").then(r => r.json()).then(renderPrices).catch(() => {});
+    fetch("/api/prices/live").then(r => r.json()).then(renderBoard).catch(() => {});
 
-    // ----- 캔들 차트 -----
+    // ----- 캔들 차트 (큰 차트) -----
     let chart, candleSeries, volumeSeries, chartReady = false, interval = "1m";
 
     function ensureChart() {
@@ -183,8 +247,7 @@
     function loadChart() {
         if (!chartReady) return;
         const code = document.getElementById("chartSymbol").value;
-        const count = interval === "1m" ? 120 : 120;
-        fetch(`/api/stocks/${code}/candles?interval=${interval}&count=${count}`)
+        fetch(`/api/stocks/${code}/candles?interval=${interval}&count=120`)
             .then(r => r.json())
             .then(data => {
                 const note = document.getElementById("chartNote");
@@ -258,7 +321,7 @@
         stomp.debug = null;
         stomp.connect({}, () => {
             setStatus(true);
-            stomp.subscribe("/topic/prices", msg => renderPrices(JSON.parse(msg.body)));
+            stomp.subscribe("/topic/prices", msg => renderBoard(JSON.parse(msg.body)));
             stomp.subscribe("/topic/anomalies", msg => addAnomaly(JSON.parse(msg.body), true));
         }, () => { setStatus(false); setTimeout(connect, 3000); });
     }

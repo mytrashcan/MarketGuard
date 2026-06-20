@@ -54,12 +54,21 @@ $env:COLLECTOR_ENABLED="true"
 # account-id는 시세 조회엔 불필요(계좌/주문 API 전용)
 ```
 
-- **관제 대시보드(실시간): `http://localhost:8080/`** — WebSocket으로 탐지 즉시 표시
-- H2 콘솔: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:marketguard`)
+- **관제 대시보드(실시간): `http://localhost:5050/`** — WebSocket으로 탐지 즉시 표시 (포트는 `SERVER_PORT`로 변경 가능)
+- 같은 네트워크/외부에서 접속: `http://<내-IP>:5050/` (공유기 포트포워딩 + Windows 방화벽에서 5050 인바운드 허용 필요)
+- H2 콘솔: `http://localhost:5050/h2-console` (JDBC URL `jdbc:h2:mem:marketguard`) — 외부 공개 시에는 끄는 것을 권장
 - 조회 API:
   - `GET /api/anomalies` — 최근 탐지된 이상거래
   - `GET /api/stocks/{code}/snapshots` — 특정 종목 최근 시세
 - 헬스체크: `GET /actuator/health`
+
+### 전 종목 감시 (시장 전반)
+토스 Open API에는 "전 종목 목록" 엔드포인트가 없어, 스캔 대상 종목코드를 직접 공급해야 합니다.
+KRX 정보데이터시스템(data.krx.co.kr)에서 **전종목 CSV**를 받아 경로만 지정하면 그 안의 6자리 코드 전부를 스캔합니다(파일 인코딩·CSV 형식 무관, 코드만 추출).
+```powershell
+$env:SCAN_SYMBOLS_FILE="C:\krx\krx_codes.csv"   # 비우면 classpath:symbols.txt(시연 시드) 사용
+```
+스캔은 가격 기반 룰(가격 급변동)로 전 종목을 넓게 보고, 호가·캔들 등 무거운 룰은 `watch-list`(포커스) 종목에만 적용하는 2단계 구조입니다. 유니버스가 크면 `collector.poll-interval-ms`를 늘리세요.
 
 > 연동된 엔드포인트: 토큰 `POST /oauth2/token`, 시세 `GET /api/v1/prices`, 가격제한폭 `GET /api/v1/price-limits`,
 > 호가 `GET /api/v1/orderbook`, 캔들 `GET /api/v1/candles`. 투자경고(종목정보) 등은 해당 스펙에 맞춰 확장하세요

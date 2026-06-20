@@ -7,6 +7,9 @@ application-local.yml
 application-local.yaml
 .env
 *.env
+
+### 로컬 메모/스크래치 ###
+usage.txt
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

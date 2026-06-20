@@ -1,8 +1,8 @@
 package com.marketguard.dashboard;
 
-import com.marketguard.collector.OpenPriceProvider;
+import com.marketguard.collector.BoardDataService;
+import com.marketguard.collector.BoardItem;
 import com.marketguard.collector.client.TossMarketDataClient;
-import com.marketguard.config.TossApiProperties;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
@@ -27,40 +27,26 @@ public class DashboardController {
 
     private final AnomalyRepository anomalyRepository;
     private final PriceSnapshotRepository snapshotRepository;
-    private final TossApiProperties tossProps;
     private final TossMarketDataClient marketDataClient;
-    private final OpenPriceProvider openPriceProvider;
+    private final BoardDataService boardDataService;
 
     public DashboardController(AnomalyRepository anomalyRepository,
                               PriceSnapshotRepository snapshotRepository,
-                              TossApiProperties tossProps,
                               TossMarketDataClient marketDataClient,
-                              OpenPriceProvider openPriceProvider) {
+                              BoardDataService boardDataService) {
         this.anomalyRepository = anomalyRepository;
         this.snapshotRepository = snapshotRepository;
-        this.tossProps = tossProps;
         this.marketDataClient = marketDataClient;
-        this.openPriceProvider = openPriceProvider;
+        this.boardDataService = boardDataService;
     }
 
     /**
-     * 감시 대상(대형주) 현재가 보드. 등락률은 당일 시가 기준.
-     * 토스 시세 API를 즉시 호출하므로 컬렉터 여부와 무관하게 API 키만 있으면 동작한다.
+     * 시세 보드 카드(종목 블록) 목록 — 현재가(장 마감 시 종가) + 전일 종가 대비 등락률 + 거래량 + 미니 캔들.
+     * API 키만 있으면 컬렉터 여부와 무관하게 동작한다.
      */
     @GetMapping("/prices/live")
-    public List<PriceView> livePrices() {
-        try {
-            return marketDataClient.fetchPrices(tossProps.watchList()).stream()
-                    .map(snapshot -> PriceView.of(
-                            snapshot.getStockCode(),
-                            snapshot.getPrice(),
-                            openPriceProvider.openPrice(snapshot.getStockCode()),
-                            snapshot.getCapturedAt()))
-                    .toList();
-        } catch (Exception e) {
-            log.warn("실시간 시세 조회 실패: {}", e.getMessage());
-            return List.of();   // 키 미설정/장 마감 등은 빈 목록으로 (대시보드가 안내 표시)
-        }
+    public List<BoardItem> livePrices() {
+        return boardDataService.currentBoard();
     }
 
     /** 캔들(봉) 차트 데이터. interval=1m|1d, count 1~200 */

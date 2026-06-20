@@ -1,2 +1,0 @@
-$env:SPRING_PROFILES_ACTIVE="local"
-.\gradlew.bat bootRun
