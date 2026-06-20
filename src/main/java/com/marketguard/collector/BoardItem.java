@@ -1,14 +1,14 @@
 package com.marketguard.collector;
 
-import com.marketguard.detection.model.Candle;
 import java.math.BigDecimal;
-import java.util.List;
 
 /**
- * 시세 보드 카드 1개(종목 블록) DTO.
+ * 시세 보드(랭킹 테이블) 1행 DTO.
  * - price: 장중엔 실시간가, 장 마감 등으로 실시간가가 없으면 종가(lastClose)로 대체.
- * - closed: true면 실시간가가 아니라 종가 기준으로 표시 중(화면에 '종가' 표시).
- * - changePercent: 전일 종가 대비 등락률(%) — 증권사 표준 표기와 일치.
+ * - closed: true면 실시간가가 아니라 종가 기준 표시(화면에 '종가' 표시).
+ * - changePercent: 전일 종가 대비 등락률(%).
+ * - bidVolume/askVolume: 호가 총잔량(매수/매도 비율 바용).
+ * (캔들은 우측 상세 패널/차트 탭에서 /api/stocks/{code}/candles 로 별도 조회)
  */
 public record BoardItem(
         String code,
@@ -16,13 +16,15 @@ public record BoardItem(
         BigDecimal previousClose,
         Double changePercent,
         long volume,
-        boolean closed,
-        List<Candle> candles
+        long bidVolume,
+        long askVolume,
+        boolean closed
 ) {
     public static BoardItem of(String code, BigDecimal livePrice, BoardDataService.Detail detail) {
         BigDecimal prevClose = detail != null ? detail.previousClose() : null;
         long volume = detail != null ? detail.volume() : 0L;
-        List<Candle> candles = detail != null ? detail.candles() : List.of();
+        long bidVolume = detail != null ? detail.bidVolume() : 0L;
+        long askVolume = detail != null ? detail.askVolume() : 0L;
         BigDecimal lastClose = detail != null ? detail.lastClose() : null;
 
         BigDecimal price = livePrice != null ? livePrice : lastClose;
@@ -32,6 +34,6 @@ public record BoardItem(
         if (price != null && prevClose != null && prevClose.signum() != 0) {
             changePercent = price.subtract(prevClose).doubleValue() / prevClose.doubleValue() * 100.0;
         }
-        return new BoardItem(code, price, prevClose, changePercent, volume, closed, candles);
+        return new BoardItem(code, price, prevClose, changePercent, volume, bidVolume, askVolume, closed);
     }
 }

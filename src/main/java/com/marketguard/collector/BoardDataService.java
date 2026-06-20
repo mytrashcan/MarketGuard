@@ -3,6 +3,7 @@ package com.marketguard.collector;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.TossApiProperties;
 import com.marketguard.detection.model.Candle;
+import com.marketguard.detection.model.OrderbookSnapshot;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,23 +15,21 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 시세 보드 데이터 조립 + 부가 데이터 캐시.
- * - 부가 데이터(전일 종가·종가·당일 거래량·최근 분봉)는 board.detail-refresh-ms 주기로 폴링해 캐싱.
- * - currentBoard(): 현재가(실시간) 배치 조회 후 카드 목록 조립. 장 마감 등으로 실시간가가 없으면
- *   캐시된 종가(lastClose)로 대체해서라도 화면을 채운다.
+ * 시세 보드(랭킹 테이블) 데이터 조립 + 부가 데이터 캐시.
+ * - 부가 데이터(전일 종가·종가·당일 거래량·호가 총잔량)는 board.detail-refresh-ms 주기로 폴링해 캐싱.
+ * - currentBoard(): 현재가(실시간) 배치 조회 후 행 목록 조립. 장 마감 등 실시간가가 없으면 종가로 대체.
  */
 @Slf4j
 @Component
 public class BoardDataService {
 
-    private static final int MINI_CANDLE_COUNT = 30;
-
     private final TossApiProperties tossProps;
     private final TossMarketDataClient marketDataClient;
     private final Map<String, Detail> cache = new ConcurrentHashMap<>();
 
-    /** 전일 종가(등락률 기준), 최신 종가(폴백 표시용), 당일 누적 거래량, 최근 분봉(미니 차트). */
-    public record Detail(BigDecimal previousClose, BigDecimal lastClose, long volume, List<Candle> candles) {
+    /** 전일 종가(등락률 기준), 최신 종가(폴백용), 당일 거래량, 호가 총잔량(매수/매도 비율용). */
+    public record Detail(BigDecimal previousClose, BigDecimal lastClose, long volume,
+                         long bidVolume, long askVolume) {
     }
 
     public BoardDataService(TossApiProperties tossProps, TossMarketDataClient marketDataClient) {
@@ -43,7 +42,7 @@ public class BoardDataService {
     }
 
     /**
-     * 현재 보드 카드 목록. 장중엔 실시간가, 장 마감 등 실시간가가 없으면 종가로 대체.
+     * 현재 보드 행 목록. 장중엔 실시간가, 장 마감 등 실시간가가 없으면 종가로 대체.
      * API 키가 없거나 watch-list가 비면 빈 목록.
      */
     public List<BoardItem> currentBoard() {
@@ -99,8 +98,18 @@ public class BoardDataService {
             volume = today.volume();
             previousClose = daily.size() >= 2 ? daily.get(daily.size() - 2).close() : today.open();
         }
-        // 분봉으로 미니 캔들 차트
-        List<Candle> candles = marketDataClient.fetchCandles(symbol, "1m", MINI_CANDLE_COUNT);
-        return new Detail(previousClose, lastClose, volume, candles);
+        // 호가 총잔량(매수/매도 비율 바용)
+        long bidVolume = 0;
+        long askVolume = 0;
+        try {
+            OrderbookSnapshot orderbook = marketDataClient.fetchOrderbook(symbol);
+            if (orderbook != null) {
+                bidVolume = orderbook.totalBidVolume();
+                askVolume = orderbook.totalAskVolume();
+            }
+        } catch (Exception e) {
+            log.debug("[{}] 호가 조회 실패: {}", symbol, e.getMessage());
+        }
+        return new Detail(previousClose, lastClose, volume, bidVolume, askVolume);
     }
 }
