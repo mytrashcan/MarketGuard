@@ -4,6 +4,7 @@ import com.marketguard.collector.MarketDay;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import com.marketguard.detection.model.PriceLimit;
+import com.marketguard.detection.model.Warning;
 import com.marketguard.domain.marketdata.PriceSnapshot;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
@@ -101,6 +102,15 @@ public class TossMarketDataClient {
                         .build())
                 .retrieve()
                 .body(CandlesResponse.class));
+        return response == null ? List.of() : response.toDomain();
+    }
+
+    /** 단일 종목의 거래소 지정 경고/주의 목록. GET /api/v1/stocks/{symbol}/warnings */
+    public List<Warning> fetchWarnings(String symbol) {
+        WarningsResponse response = call(() -> tossApiClient.get()
+                .uri("/api/v1/stocks/{symbol}/warnings", symbol)
+                .retrieve()
+                .body(WarningsResponse.class));
         return response == null ? List.of() : response.toDomain();
     }
 

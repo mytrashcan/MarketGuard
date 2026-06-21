@@ -91,7 +91,7 @@ docker compose up --build      # postgres + 앱(prod) 기동, http://localhost:5
 | 가격제한폭 도달 | 상·하한가 도달/근접 (`/api/v1/price-limits`) | ✅ 구현 |
 | 호가 불균형 | 매수/매도 총잔량 비율 임계치 (`/api/v1/orderbook`) | ✅ 구현 |
 | 거래량 급증 | 최근 봉 거래량이 직전 평균의 N배 (`/api/v1/candles`) | ✅ 구현 |
-| 투자경고 종목 | 종목 경고 알림 연동 (종목정보 API) | ⏳ 예정 |
+| 거래소 지정종목 | 투자경고·투자위험·단기과열·정리매매 (`/api/v1/stocks/{symbol}/warnings`) | ✅ 구현 |
 
 새 룰은 `DetectionRule` 인터페이스만 구현해 빈으로 등록하면 `RuleEngine`이 자동 인식합니다(OCP).
 

@@ -12,6 +12,7 @@ import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.DetectionContext;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import com.marketguard.detection.model.PriceLimit;
+import com.marketguard.detection.model.Warning;
 import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
 import com.marketguard.domain.marketdata.PriceSnapshot;
@@ -140,15 +141,17 @@ public class MarketDataCollector {
             PriceLimit priceLimit = null;
             OrderbookSnapshot orderbook = null;
             List<Candle> candles = List.of();
+            List<Warning> warnings = List.of();
             if (deep) {
                 // 부가 데이터는 실패하더라도 해당 룰만 비활성화되도록 개별 격리
                 priceLimit = safe(() -> marketDataClient.fetchPriceLimit(symbol), null, symbol, "가격제한폭");
                 orderbook = safe(() -> marketDataClient.fetchOrderbook(symbol), null, symbol, "호가");
                 candles = safe(() -> marketDataClient.fetchCandles(symbol, CANDLE_INTERVAL, CANDLE_COUNT),
                         List.of(), symbol, "캔들");
+                warnings = safe(() -> marketDataClient.fetchWarnings(symbol), List.of(), symbol, "투자경고");
             }
 
-            DetectionContext context = new DetectionContext(saved, recent, priceLimit, orderbook, candles);
+            DetectionContext context = new DetectionContext(saved, recent, priceLimit, orderbook, candles, warnings);
             for (Anomaly anomaly : ruleEngine.evaluate(context)) {
                 if (onCooldown(anomaly)) {
                     continue;   // 같은 (종목,룰) 신호가 쿨다운 내면 중복 발생 억제
