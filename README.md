@@ -37,9 +37,9 @@ com.marketguard
 ## 기술 스택
 
 - Java 17 (Gradle toolchain, foojay 자동 프로비저닝) · Spring Boot 4.1
-- Spring Web(RestClient) · Spring Data JPA · Validation · Actuator · WebSocket(STOMP)
-- H2 (로컬) / PostgreSQL (운영 프로파일) · Lombok
-- JUnit 5 · AssertJ
+- Spring Web(RestClient) · Spring Data JPA · Validation · Actuator · WebSocket(STOMP) · AOP
+- Resilience4j(Retry·CircuitBreaker) · H2 (로컬) / PostgreSQL (운영 프로파일) · Lombok
+- JUnit 5 · AssertJ · Testcontainers(PostgreSQL 통합테스트)
 
 ## 실행 방법
 
@@ -91,5 +91,5 @@ $env:SCAN_SYMBOLS_FILE="C:\krx\krx_codes.csv"   # 비우면 classpath:symbols.tx
 - [x] **Phase 1** — API 연동 골격 + 토큰 관리 + 시세 수집·저장 + 룰 엔진 + 예시 룰 1개
 - [x] **Phase 2** — 룰 추가(가격제한폭·호가불균형·거래량) · 투자경고는 종목정보 API 연동으로 추후
 - [x] **Phase 3** — 관제 대시보드 화면 + WebSocket(STOMP) 실시간 알림
-- [ ] **Phase 4** — Resilience4j(재시도·서킷브레이커) + 감사 로그(AOP) + 통합 테스트(Testcontainers)
+- [x] **Phase 4** — Resilience4j(재시도·서킷브레이커) + 감사 로그(AOP, `@Audited`→`audit_log`) + 통합 테스트(Testcontainers PostgreSQL) + 거래캘린더 연동(공휴일·정규장 시간으로 스캔 게이트)
 - [ ] **Phase 5** — Flyway + Docker Compose + 문서화

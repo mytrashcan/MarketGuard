@@ -6,6 +6,8 @@ import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
+import com.marketguard.domain.audit.AuditLog;
+import com.marketguard.domain.audit.AuditLogRepository;
 import com.marketguard.domain.marketdata.PriceSnapshot;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import java.util.List;
@@ -29,15 +31,18 @@ public class DashboardController {
     private final PriceSnapshotRepository snapshotRepository;
     private final TossMarketDataClient marketDataClient;
     private final BoardDataService boardDataService;
+    private final AuditLogRepository auditLogRepository;
 
     public DashboardController(AnomalyRepository anomalyRepository,
                               PriceSnapshotRepository snapshotRepository,
                               TossMarketDataClient marketDataClient,
-                              BoardDataService boardDataService) {
+                              BoardDataService boardDataService,
+                              AuditLogRepository auditLogRepository) {
         this.anomalyRepository = anomalyRepository;
         this.snapshotRepository = snapshotRepository;
         this.marketDataClient = marketDataClient;
         this.boardDataService = boardDataService;
+        this.auditLogRepository = auditLogRepository;
     }
 
     /**
@@ -66,6 +71,12 @@ public class DashboardController {
     @GetMapping("/anomalies")
     public List<AnomalyRecord> recentAnomalies() {
         return anomalyRepository.findByOrderByDetectedAtDesc(Limit.of(50));
+    }
+
+    /** 최근 감사 로그(토큰 발급 등 주요 작업 추적) */
+    @GetMapping("/audit")
+    public List<AuditLog> recentAudit() {
+        return auditLogRepository.findByOrderByCreatedAtDesc(Limit.of(100));
     }
 
     /** 특정 종목의 최근 시세 스냅샷 */
