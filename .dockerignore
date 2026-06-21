@@ -1,0 +1,16 @@
+# 빌드 산출물·캐시
+build/
+.gradle/
+.git/
+.idea/
+*.iml
+
+# 시크릿: 절대 이미지에 포함하지 않음 (운영은 prod 프로파일 + 환경변수 사용)
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+.env
+*.env
+
+# 문서/로컬 메모
+HELP.md
+usage.txt

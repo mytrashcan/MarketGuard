@@ -1,0 +1,20 @@
+# 운영(prod) 프로파일: PostgreSQL + Flyway 마이그레이션
+# 시크릿/접속정보는 환경변수로 주입(Docker Compose 등). 예: SPRING_DATASOURCE_URL, TOSS_CLIENT_ID ...
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/marketguard}
+    username: ${SPRING_DATASOURCE_USERNAME:marketguard}
+    password: ${SPRING_DATASOURCE_PASSWORD:marketguard}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none             # 스키마는 Flyway가 관리(Hibernate는 생성/검증하지 않음)
+  flyway:
+    enabled: true                # db/migration 의 버전 스크립트를 기동 시 적용
+  h2:
+    console:
+      enabled: false
+
+logging:
+  level:
+    com.marketguard: INFO

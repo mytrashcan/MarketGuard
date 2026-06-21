@@ -12,11 +12,13 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop      # Phase 4에서 Flyway로 전환 예정
+      ddl-auto: create-drop      # 로컬(H2)은 Hibernate가 스키마 생성. 운영(prod)은 Flyway가 담당.
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: false               # 로컬 기본 비활성. prod 프로파일에서 PostgreSQL에 대해 활성화.
   h2:
     console:
       enabled: true

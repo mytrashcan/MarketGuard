@@ -70,6 +70,15 @@ $env:SCAN_SYMBOLS_FILE="C:\krx\krx_codes.csv"   # 비우면 classpath:symbols.tx
 ```
 스캔은 가격 기반 룰(가격 급변동)로 전 종목을 넓게 보고, 호가·캔들 등 무거운 룰은 `watch-list`(포커스) 종목에만 적용하는 2단계 구조입니다. 유니버스가 크면 `collector.poll-interval-ms`를 늘리세요.
 
+### Docker로 실행 (운영 패키징: PostgreSQL + Flyway)
+`prod` 프로파일은 PostgreSQL을 쓰고 스키마는 **Flyway 마이그레이션**(`db/migration/V1__init.sql`)으로 관리합니다.
+```powershell
+$env:TOSS_CLIENT_ID="..."; $env:TOSS_CLIENT_SECRET="..."
+docker compose up --build      # postgres + 앱(prod) 기동, http://localhost:5050
+```
+- 키는 환경변수로만 주입되며 이미지에 포함되지 않습니다(`application-local.yml`은 `.dockerignore`로 제외).
+- 로컬 개발(H2)은 Flyway를 끄고 Hibernate가 스키마를 생성, 운영(prod)은 Flyway가 담당합니다.
+
 > 연동된 엔드포인트: 토큰 `POST /oauth2/token`, 시세 `GET /api/v1/prices`, 가격제한폭 `GET /api/v1/price-limits`,
 > 호가 `GET /api/v1/orderbook`, 캔들 `GET /api/v1/candles`. 투자경고(종목정보) 등은 해당 스펙에 맞춰 확장하세요
 > (스펙: `https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`).
@@ -92,4 +101,4 @@ $env:SCAN_SYMBOLS_FILE="C:\krx\krx_codes.csv"   # 비우면 classpath:symbols.tx
 - [x] **Phase 2** — 룰 추가(가격제한폭·호가불균형·거래량) · 투자경고는 종목정보 API 연동으로 추후
 - [x] **Phase 3** — 관제 대시보드 화면 + WebSocket(STOMP) 실시간 알림
 - [x] **Phase 4** — Resilience4j(재시도·서킷브레이커) + 감사 로그(AOP, `@Audited`→`audit_log`) + 통합 테스트(Testcontainers PostgreSQL) + 거래캘린더 연동(공휴일·정규장 시간으로 스캔 게이트)
-- [ ] **Phase 5** — Flyway + Docker Compose + 문서화
+- [x] **Phase 5** — Flyway 마이그레이션 + Docker(멀티스테이지) + Docker Compose(PostgreSQL) 패키징
