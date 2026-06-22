@@ -1,26 +1,29 @@
 # MarketGuard — 시장감시 · 이상거래 탐지 시스템
 
+[![CI](https://github.com/mytrashcan/MarketGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/mytrashcan/MarketGuard/actions/workflows/ci.yml)
+
 토스증권 Open API로 시세를 수집해 **룰 기반으로 이상거래를 탐지**하고 실시간으로 알리는 미니 시장감시 시스템입니다.
-한국거래소 시장감시본부 / 금융감독원 투자자보호 업무를 작게 재현한 **금융공기업 IT개발직 포트폴리오** 프로젝트입니다.
+한국거래소 시장감시본부 / 금융감독원 투자자보호 업무를 작게 재현한 **토이 프로젝트**입니다.
 
 > ⚠️ 매매(주문) 기능은 사용하지 않습니다. **read-only 수집·분석 중심**으로, 실제 자금이 움직이지 않습니다.
 
 ## 아키텍처
 
+```mermaid
+flowchart TD
+    Toss["토스증권 Open API"] -->|OAuth2 · REST| Client["TossMarketDataClient<br/>Retry · CircuitBreaker"]
+    Client --> Scanner["MarketDataCollector<br/>2단계 스캔 · 정규장 게이트 · 쿨다운"]
+    Client --> Stream["PriceStreamScheduler<br/>실시간 시세 보드"]
+    Scanner --> Engine["RuleEngine<br/>전략패턴 · 탐지 룰 5종"]
+    Engine --> Notifier["AnomalyNotifier"]
+    Notifier -->|WS /topic/anomalies| Board["관제 대시보드"]
+    Stream -->|WS /topic/prices| Board
+    Scanner --> Store[("JPA · H2 / PostgreSQL+Flyway")]
+    Engine --> Store
+    Audit["AuditAspect @Audited"] --> Store
 ```
-토스증권 Open API
-        │  OAuth2 · REST 폴링
-        ▼
-① 수집 계층 (collector)        API 클라이언트 · 토큰 관리(자동 갱신) · 폴링 스케줄러
-        ▼
-② 탐지 엔진 (detection)        DetectionRule 전략 패턴 — 가격 급변동·가격제한폭·호가불균형·거래량
-        ▼
-③ 알림 · 조회 (alert/dashboard)  WebSocket 실시간 푸시 · 조회 API · 관제 대시보드 화면
-        ▼
-   관제 대시보드               리스크 스코어 · 알림 이력
 
-공통 관심사: 데이터 저장(JPA) · 감사 로그 · (예정) 회복탄력성(Resilience4j) · 보안(토큰/시크릿)
-```
+공통 관심사: 회복탄력성(Resilience4j) · 감사 로그(AOP) · 데이터 저장(JPA/Flyway) · 보안(토큰/시크릿) · 정규장·공휴일 게이트
 
 패키지 구조:
 
