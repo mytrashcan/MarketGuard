@@ -32,7 +32,11 @@ public class SecurityConfig {
     SecurityFilterChain applicationSecurity(HttpSecurity http,
                                             MarketGuardSecurityProperties properties,
                                             ApiRateLimitFilter apiRateLimitFilter) throws Exception {
-        http.csrf(csrf -> csrf.disable())
+        http.csrf(csrf -> {
+                    if (!properties.enabled()) {
+                        csrf.ignoringRequestMatchers("/h2-console/**");
+                    }
+                })
                 .cors(cors -> cors.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers
