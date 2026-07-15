@@ -76,6 +76,14 @@ public class DashboardController {
                 .toList();
     }
 
+    /** 구조화된 근거를 포함한 단일 탐지 상세. */
+    @GetMapping("/anomalies/{id}")
+    public AnomalyView anomaly(@PathVariable @Min(1) Long id) {
+        var record = anomalyRepository.findById(id)
+                .orElseThrow(() -> new com.marketguard.application.CaseNotFoundException(id));
+        return AnomalyView.from(record, stockReferenceService.nameOf(record.getStockCode()));
+    }
+
     /** 최근 감사 로그(토큰 발급 등 주요 작업 추적) */
     @GetMapping("/audit")
     public List<AuditLogView> recentAudit(

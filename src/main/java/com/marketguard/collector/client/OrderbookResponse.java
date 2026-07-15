@@ -3,6 +3,7 @@ package com.marketguard.collector.client;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -10,7 +11,7 @@ import java.util.List;
  */
 public record OrderbookResponse(Result result) {
 
-    public record Result(List<Level> bids, List<Level> asks) {
+    public record Result(OffsetDateTime timestamp, List<Level> bids, List<Level> asks) {
     }
 
     public record Level(
@@ -23,7 +24,8 @@ public record OrderbookResponse(Result result) {
         if (result == null) {
             return null;
         }
-        return new OrderbookSnapshot(toLevels(result.bids()), toLevels(result.asks()));
+        return new OrderbookSnapshot(toLevels(result.bids()), toLevels(result.asks()),
+                result.timestamp() == null ? null : result.timestamp().toInstant());
     }
 
     private static List<OrderbookSnapshot.Level> toLevels(List<Level> levels) {

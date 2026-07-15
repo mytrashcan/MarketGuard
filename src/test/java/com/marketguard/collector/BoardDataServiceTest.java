@@ -43,7 +43,8 @@ class BoardDataServiceTest {
     @Test
     void prefersOfficialRankingBasePriceAndShowsTheStockName() {
         when(marketDataClient.fetchKrRealtimeVolumeRanking()).thenReturn(List.of(
-                new MarketRankingQuote(SYMBOL, decimal("72000"), decimal("70000"), 123456L)));
+                new MarketRankingQuote(SYMBOL, decimal("72000"), decimal("70000"),
+                        decimal("0.0286"), 123456L, Instant.parse("2026-07-15T01:00:00Z"))));
         when(marketDataClient.fetchOrderbook(SYMBOL)).thenReturn(orderbook(300, 700));
         when(marketDataClient.fetchPrices(List.of(SYMBOL))).thenReturn(List.of(
                 new MarketPrice(SYMBOL, decimal("73500"), Instant.parse("2026-07-15T01:00:00Z"))));
@@ -54,12 +55,15 @@ class BoardDataServiceTest {
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.name()).isEqualTo("삼성전자");
-            assertThat(item.price()).isEqualByComparingTo("73500");
+            assertThat(item.price()).isEqualByComparingTo("72000");
             assertThat(item.previousClose()).isEqualByComparingTo("70000");
-            assertThat(item.changePercent()).isEqualByComparingTo("5.00000000");
+            assertThat(item.changePercent()).isEqualByComparingTo("2.8600");
+            assertThat(item.changeSource()).isEqualTo(PriceChangeSource.TOSS_RANKING);
+            assertThat(item.priceObservedAt()).isEqualTo(Instant.parse("2026-07-15T01:00:00Z"));
             assertThat(item.volume()).isEqualTo(123456L);
             assertThat(item.bidVolume()).isEqualTo(300L);
             assertThat(item.askVolume()).isEqualTo(700L);
+            assertThat(item.orderbookStatus()).isEqualTo(OrderbookStatus.AVAILABLE);
         });
         verify(marketDataClient, never()).fetchCandles(SYMBOL, "1d", 2, false);
     }
@@ -77,8 +81,22 @@ class BoardDataServiceTest {
             assertThat(detail.previousClose()).isEqualByComparingTo("70000");
             assertThat(detail.lastClose()).isEqualByComparingTo("71500");
             assertThat(detail.volume()).isEqualTo(200L);
+            assertThat(detail.changeSource()).isEqualTo(PriceChangeSource.UNADJUSTED_DAILY_CANDLES);
         });
         verify(marketDataClient).fetchCandles(SYMBOL, "1d", 2, false);
+    }
+
+    @Test
+    void distinguishesMissingOrderbookDataFromZeroVolumes() {
+        when(marketDataClient.fetchKrRealtimeVolumeRanking()).thenReturn(List.of(
+                new MarketRankingQuote(SYMBOL, decimal("72000"), decimal("70000"),
+                        decimal("0.0286"), 123456L, Instant.parse("2026-07-15T01:00:00Z"))));
+        when(marketDataClient.fetchOrderbook(SYMBOL))
+                .thenReturn(new OrderbookSnapshot(List.of(), List.of(), Instant.parse("2026-07-15T01:00:01Z")));
+
+        service.refresh();
+
+        assertThat(service.detail(SYMBOL).orderbookStatus()).isEqualTo(OrderbookStatus.NO_DATA);
     }
 
     private static OrderbookSnapshot orderbook(long bidVolume, long askVolume) {

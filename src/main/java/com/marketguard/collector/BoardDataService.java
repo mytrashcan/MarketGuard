@@ -6,6 +6,7 @@ import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -30,8 +31,10 @@ public class BoardDataService {
     private final Map<String, Detail> cache = new ConcurrentHashMap<>();
 
     /** 전일 기준가(등락률 기준), 최신 종가(폴백용), 당일 거래량, 호가 총잔량(매수/매도 비율용). */
-    public record Detail(BigDecimal previousClose, BigDecimal lastClose, long volume,
-                         long bidVolume, long askVolume) {
+    public record Detail(BigDecimal previousClose, BigDecimal lastClose, BigDecimal officialChangeRate,
+                         long volume, long bidVolume, long askVolume,
+                         PriceChangeSource changeSource, Instant priceObservedAt,
+                         OrderbookStatus orderbookStatus, Instant orderbookObservedAt) {
     }
 
     public BoardDataService(TossApiProperties tossProps,
@@ -95,10 +98,16 @@ public class BoardDataService {
     private Detail fetchDetail(String symbol, MarketRankingQuote ranking) {
         BigDecimal previousClose;
         BigDecimal lastClose;
+        BigDecimal officialChangeRate;
+        Instant priceObservedAt;
+        PriceChangeSource changeSource;
         long volume;
         if (hasUsableBasePrice(ranking)) {
             previousClose = ranking.basePrice();
             lastClose = ranking.lastPrice();
+            officialChangeRate = ranking.changeRate();
+            priceObservedAt = ranking.rankedAt();
+            changeSource = PriceChangeSource.TOSS_RANKING;
             volume = ranking.tradingVolume();
         } else {
             // 랭킹 100위 밖 종목은 기업행사 전후에도 실제 전일 종가를 보존하도록 무수정주가를 사용한다.
@@ -107,27 +116,39 @@ public class BoardDataService {
                     .toList();
             previousClose = null;
             lastClose = null;
+            officialChangeRate = null;
+            priceObservedAt = null;
+            changeSource = PriceChangeSource.UNAVAILABLE;
             volume = 0;
             if (!daily.isEmpty()) {
                 Candle today = daily.get(daily.size() - 1);
                 lastClose = today.close();
                 volume = today.volume();
                 previousClose = daily.size() >= 2 ? daily.get(daily.size() - 2).close() : today.open();
+                priceObservedAt = today.timestamp();
+                changeSource = PriceChangeSource.UNADJUSTED_DAILY_CANDLES;
             }
         }
         // 호가 총잔량(매수/매도 비율 바용)
         long bidVolume = 0;
         long askVolume = 0;
+        OrderbookStatus orderbookStatus = OrderbookStatus.NO_DATA;
+        Instant orderbookObservedAt = null;
         try {
             OrderbookSnapshot orderbook = marketDataClient.fetchOrderbook(symbol);
             if (orderbook != null) {
                 bidVolume = orderbook.totalBidVolume();
                 askVolume = orderbook.totalAskVolume();
+                orderbookObservedAt = orderbook.observedAt();
+                orderbookStatus = bidVolume > 0 && askVolume > 0
+                        ? OrderbookStatus.AVAILABLE : OrderbookStatus.NO_DATA;
             }
         } catch (Exception e) {
+            orderbookStatus = OrderbookStatus.UPSTREAM_ERROR;
             log.debug("[{}] 호가 조회 실패: {}", symbol, e.getClass().getSimpleName());
         }
-        return new Detail(previousClose, lastClose, volume, bidVolume, askVolume);
+        return new Detail(previousClose, lastClose, officialChangeRate, volume, bidVolume, askVolume,
+                changeSource, priceObservedAt, orderbookStatus, orderbookObservedAt);
     }
 
     private Map<String, MarketRankingQuote> fetchRanking() {

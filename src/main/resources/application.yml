@@ -133,6 +133,24 @@ detection:
     multiplier: 3.0          # 직전 봉 평균 거래량 대비 N배 이상이면 이상
     lookback: 20
 
+# 동일 종목 신호를 검토 가능한 사건으로 묶고 설명 가능한 관심도 점수를 계산한다.
+surveillance:
+  grouping-window: 10m
+  inactivity-timeout: 20m
+  reactivation-window: 30m
+  lifecycle-interval: 1m
+  simultaneous-signal-bonus: 10
+  max-score: 100
+  medium-threshold: 30
+  high-threshold: 60
+  rule-weights:
+    PRICE_SPIKE: 25
+    VOLUME_SURGE: 25
+    ORDERBOOK_IMBALANCE: 20
+    PRICE_LIMIT: 15
+    INVESTMENT_WARNING: 15
+    PRICE_VOLUME_SURGE: 35
+
 logging:
   level:
     com.marketguard: INFO

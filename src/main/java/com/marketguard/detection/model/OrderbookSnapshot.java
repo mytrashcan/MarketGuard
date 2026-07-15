@@ -1,13 +1,18 @@
 package com.marketguard.detection.model;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * 호가창 스냅샷. bids=매수호가, asks=매도호가.
  */
-public record OrderbookSnapshot(List<Level> bids, List<Level> asks) {
+public record OrderbookSnapshot(List<Level> bids, List<Level> asks, Instant observedAt) {
+
+    public OrderbookSnapshot(List<Level> bids, List<Level> asks) {
+        this(bids, asks, null);
+    }
 
     public record Level(BigDecimal price, long volume) {
         public Level {

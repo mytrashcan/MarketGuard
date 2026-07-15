@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-marketguard-smoke-$$}"
+export HOST_PORT="${HOST_PORT:-15050}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-smoke-db-$(openssl rand -hex 16)}"
 export MARKETGUARD_ADMIN_USERNAME="${MARKETGUARD_ADMIN_USERNAME:-smoke-operator}"
 export MARKETGUARD_ADMIN_PASSWORD="${MARKETGUARD_ADMIN_PASSWORD:-smoke-admin-$(openssl rand -hex 16)}"
-export MARKETGUARD_ALLOWED_ORIGINS="${MARKETGUARD_ALLOWED_ORIGINS:-http://localhost:5050}"
+export MARKETGUARD_ALLOWED_ORIGINS="${MARKETGUARD_ALLOWED_ORIGINS:-http://localhost:${HOST_PORT}}"
 export COLLECTOR_ENABLED=false
 
 cleanup() {
@@ -38,4 +40,4 @@ migration_count="$(docker compose exec --no-TTY postgres \
   psql --tuples-only --no-align --username "${POSTGRES_USER:-marketguard}" \
   --dbname "${POSTGRES_DB:-marketguard}" \
   --command 'select count(*) from flyway_schema_history where success = true')"
-test "${migration_count}" = "3"
+test "${migration_count}" = "4"

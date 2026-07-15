@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AnomalyRepository extends JpaRepository<AnomalyRecord, Long> {
 
     List<AnomalyRecord> findByOrderByDetectedAtDesc(Limit limit);
+
+    List<AnomalyRecord> findByCaseIdOrderByDetectedAtAsc(Long caseId);
 }

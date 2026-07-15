@@ -79,6 +79,41 @@
         .sev.INFO { background: #20262e; color: #9aa0aa; }
         .empty { color: #6b7280; padding: 24px 12px; }
 
+        .case-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .case-layout { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(480px, 1.2fr); gap: 16px; align-items: start; }
+        .case-list { display: grid; gap: 8px; }
+        .case-card { width: 100%; text-align: left; color: inherit; background: #161922; border: 1px solid #21242b;
+            border-radius: 12px; padding: 13px 14px; cursor: pointer; }
+        .case-card:hover, .case-card.active { border-color: #546075; background: #1b2030; }
+        .case-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+        .case-card h3 { margin: 5px 0 3px; font-size: 14px; }
+        .case-card p { margin: 0; color: #b8bec8; font-size: 12.5px; line-height: 1.5; }
+        .case-meta, .tag-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; color: #8d95a3; font-size: 11px; }
+        .tag, .state, .attention { border: 1px solid #303642; border-radius: 999px; padding: 2px 7px; font-size: 11px; }
+        .attention.HIGH { color: #ff7b7b; border-color: #733; } .attention.MEDIUM { color: #ffc14d; border-color: #654f20; }
+        .attention.LOW { color: #8ab4f8; }
+        .score { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .case-detail { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 16px; position: sticky; top: 16px; max-height: calc(100vh - 40px); overflow: auto; }
+        .case-detail h2 { margin: 0 0 4px; font-size: 17px; } .case-detail h3 { margin: 20px 0 8px; font-size: 14px; }
+        .detail-summary { color: #c4c8cf; line-height: 1.55; margin: 8px 0; }
+        .warning-box { color: #f2d59b; background: #302817; border: 1px solid #5a4720; border-radius: 9px; padding: 10px; font-size: 12px; line-height: 1.5; }
+        .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .metric { background: #11141a; border-radius: 8px; padding: 9px; }
+        .metric .label { color: #7f8794; font-size: 10px; } .metric .value { margin-top: 3px; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+        .signal-card { border-left: 3px solid #546075; background: #11141a; padding: 10px 12px; margin: 8px 0; border-radius: 0 8px 8px 0; }
+        .signal-card p { color: #b8bec8; font-size: 12px; line-height: 1.55; margin: 5px 0; }
+        .check-list, .history-list { margin: 6px 0; padding-left: 19px; color: #b8bec8; font-size: 12px; line-height: 1.65; }
+        .review-form { display: grid; gap: 8px; } .review-form label { font-size: 11px; color: #9aa0aa; }
+        textarea, input { width: 100%; background: #11141a; color: #e8eaed; border: 1px solid #303642; border-radius: 8px; padding: 8px; font: inherit; }
+        button.action { border: 1px solid #3b6650; background: #173624; color: #8ce5ac; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+        button.action:disabled { opacity: .5; cursor: wait; }
+        .pager { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
+        .pager button { border: 1px solid #303642; background: #161922; color: #c4c8cf; border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+        .pager button:disabled { opacity: .4; cursor: default; }
+        .form-message { min-height: 16px; font-size: 11px; color: #9aa0aa; }
+        #caseChart { height: 280px; border: 1px solid #21242b; border-radius: 8px; }
+        @media (max-width: 1050px) { .case-layout { grid-template-columns: 1fr; } .case-detail { position: static; max-height: none; } }
+
         /* 룰 설명 */
         .gloss { display: grid; gap: 12px; max-width: 840px; }
         .term { background: #161922; border: 1px solid #21242b; border-radius: 12px; padding: 14px 16px; }
@@ -105,7 +140,7 @@
 <nav>
     <button class="tab active" data-tab="prices">📈 실시간 시세</button>
     <button class="tab" data-tab="chart">📊 차트</button>
-    <button class="tab" data-tab="anomalies">🚨 이상거래 탐지</button>
+    <button class="tab" data-tab="anomalies">🚨 이상징후 사건</button>
     <button class="tab" data-tab="audit">🛡️ 감사·리스크</button>
     <button class="tab" data-tab="help">📖 룰 설명</button>
 </nav>
@@ -114,7 +149,7 @@
     <section id="prices" class="panel active">
         <div class="board-layout">
             <div class="board-main">
-                <p class="hint">등락률은 토스의 <b>전일 기준가 대비</b> · <b>거래량 순</b> 정렬 · 매수/매도는 호가 잔량 비율입니다</p>
+                <p class="hint">등락률은 토스 랭킹의 <b>동일 집계 시각 현재가·전일 기준가·공식 등락률</b> · 매수/매도는 체결 비율이 아닌 <b>미체결 호가 잔량 비율</b>입니다</p>
                 <div id="priceNote" class="note" style="display:none;">
                     시세 데이터가 없습니다. 토스 API 키(<code>TOSS_CLIENT_ID</code>/<code>TOSS_CLIENT_SECRET</code>) 설정과 장 운영 시간을 확인하세요.
                 </div>
@@ -156,20 +191,36 @@
     </section>
 
     <section id="anomalies" class="panel">
-        <table class="anom">
-            <thead>
-            <tr><th>시각</th><th>종목</th><th>룰</th><th>심각도</th><th>메시지</th></tr>
-            </thead>
-            <tbody id="rows">
-            <tr><td colspan="5" class="empty">탐지 내역을 기다리는 중…</td></tr>
-            </tbody>
-        </table>
+        <p class="warning-box">MarketGuard는 공개 시장 데이터 기반의 참고용 이상징후를 보여줍니다. 불공정거래·시세조종·투자 위험·투자 가치를 판정하거나 매매를 추천하지 않습니다.</p>
+        <div class="case-toolbar">
+            <label for="caseStatusFilter" class="hint" style="margin:0;">검토 상태</label>
+            <select id="caseStatusFilter">
+                <option value="">전체</option><option>NEW</option><option>REVIEWING</option>
+                <option>WATCHING</option><option>DISMISSED</option><option>ESCALATED</option><option>CLOSED</option>
+            </select>
+            <span id="caseCount" class="updated"></span>
+        </div>
+        <div class="case-layout">
+            <div>
+                <div id="caseList" class="case-list"><div class="note">탐지 사건을 불러오는 중…</div></div>
+                <div id="caseListError" class="note" style="display:none; margin-top:8px;"></div>
+                <div class="pager"><button id="casePrev" type="button">이전</button><span id="casePageLabel" class="updated">1 / 1</span><button id="caseNext" type="button">다음</button></div>
+            </div>
+            <aside id="caseDetail" class="case-detail">
+                <div class="note">왼쪽 사건을 선택하면 탐지 근거, 차트, 검토 이력이 표시됩니다.</div>
+            </aside>
+        </div>
     </section>
 
     <section id="audit" class="panel">
-        <p class="hint">탐지된 이상거래의 리스크 요약과, 주요 작업의 감사 로그(AOP)입니다.</p>
+        <p class="hint">탐지된 이상징후의 리스크 요약과, 주요 작업의 감사 로그(AOP)입니다.</p>
         <h3 class="sec-title">리스크 현황</h3>
         <div id="riskStats" class="stats"></div>
+        <h3 class="sec-title" style="margin-top:20px;">규칙별 검토 결과</h3>
+        <table class="anom">
+            <thead><tr><th>규칙</th><th class="num">신호</th><th class="num">사건</th><th class="num">기각률</th><th class="num">상위 검토율</th><th class="num">평균 검토시간</th></tr></thead>
+            <tbody id="ruleAnalyticsRows"><tr><td colspan="6" class="empty">검토 결과를 불러오는 중…</td></tr></tbody>
+        </table>
         <h3 class="sec-title" style="margin-top:20px;">감사 로그 <span class="updated" id="auditUpdated"></span></h3>
         <table class="anom">
             <thead><tr><th>시각</th><th>작업</th><th>결과</th><th class="num">소요(ms)</th><th>상세</th></tr></thead>
@@ -178,15 +229,16 @@
     </section>
 
     <section id="help" class="panel">
-        <p class="hint">대시보드 용어와 이상거래 탐지 룰을 쉽게 설명합니다.</p>
+        <p class="hint">대시보드 용어와 이상징후 탐지 룰을 쉽게 설명합니다.</p>
         <div class="gloss">
-            <div class="term"><h3>등락률 (전일 기준가 대비)</h3><p>토스증권 Open API의 <b>전일 기준가</b> 대비 현재가 변동률입니다. 랭킹에 없는 종목만 무수정 전일 종가를 사용합니다. <b class="up">빨강 ▲</b> 상승 / <b class="down">파랑 ▼</b> 하락(한국식 색).</p></div>
+            <div class="term"><h3>등락률 (전일 기준가 대비)</h3><p>토스증권 Open API 랭킹이 같은 집계 시각에 제공한 <b>현재가·전일 기준가·changeRate</b>를 그대로 사용합니다. 랭킹에 없는 종목만 무수정 일봉으로 계산하며 출처를 구분합니다. <b class="up">빨강 ▲</b> 상승 / <b class="down">파랑 ▼</b> 하락(한국식 색).</p></div>
             <div class="term"><h3>거래량</h3><p>당일 누적 체결 수량(주). 많이 거래된 종목일수록 큽니다. 보드는 거래량 순으로 정렬됩니다. (토스 Open API는 거래대금(원)을 제공하지 않아 거래량으로 표시합니다)</p></div>
-            <div class="term"><h3>매수/매도 바</h3><p>호가창의 <b>매수 잔량</b>(빨강)과 <b>매도 잔량</b>(파랑) 비율. 한쪽으로 크게 치우치면 쏠림 신호입니다.</p></div>
+            <div class="term"><h3>매수/매도 바</h3><p>호가창의 <b>매수 잔량</b>(빨강)과 <b>매도 잔량</b>(파랑) 비율입니다. 실제 매수·매도 체결 비율이나 투자자별 순매수 비율이 아닙니다. 장외·미제공·API 오류는 0%로 오해하지 않도록 상태 문구로 표시합니다.</p></div>
             <div class="term"><h3>봉(캔들)</h3><p>일정 기간(1분·1일)의 <b>시가·고가·저가·종가</b>를 막대 하나로 표현. 몸통은 시가~종가, 위아래 꼬리는 고가·저가.</p></div>
             <div class="term"><h3>🚨 가격 급변동 (PRICE_SPIKE)</h3><p>현재가가 직전 평균가 대비 ±일정 % 이상 급등/급락. 단기 이상 변동을 잡습니다.</p></div>
             <div class="term"><h3>🚨 가격제한폭 도달 (PRICE_LIMIT)</h3><p>하루 최대 변동폭(±30%)인 <b>상한가/하한가</b>에 도달하거나 근접.</p></div>
-            <div class="term"><h3>🚨 호가 불균형 (ORDERBOOK_IMBALANCE)</h3><p>호가창에서 <b>사겠다고 걸어둔 대기물량(매수 잔량)</b>과 <b>팔겠다고 걸어둔 물량(매도 잔량)</b>의 합을 비교합니다. 매수 잔량이 압도적이면 <b class="up">매수 우위</b>, 매도 잔량이 크면 <b class="down">매도 우위</b>. 비정상적으로 쏠리면 허수호가·시세조종 가능성을 의심합니다.</p></div>
+            <div class="term"><h3>🚨 호가 불균형 (ORDERBOOK_IMBALANCE)</h3><p>호가창에서 <b>사겠다고 걸어둔 대기물량(매수 잔량)</b>과 <b>팔겠다고 걸어둔 물량(매도 잔량)</b>의 합을 비교합니다. 매수 잔량이 크면 <b class="up">매수 우위</b>, 매도 잔량이 크면 <b class="down">매도 우위</b>로 표시합니다. 호가는 취소될 수 있어 실제 체결·불공정거래를 뜻하지 않으며 지속 여부와 가격·체결 흐름을 추가 확인해야 합니다.</p></div>
+            <div class="term"><h3>🚨 가격·거래량 동시 급증 (PRICE_VOLUME_SURGE)</h3><p>가격 변동과 1분 거래량이 각각의 기준을 같은 평가에서 모두 넘은 경우입니다. 단일 신호보다 검토 우선순위를 높이되 시장 전체 움직임과 공개 이벤트를 함께 확인합니다.</p></div>
             <div class="term"><h3>🚨 거래량 급증 (VOLUME_SURGE)</h3><p>최근 봉의 거래량이 직전 평균의 N배 이상. 갑작스런 매매 폭증을 포착합니다.</p></div>
             <div class="term"><h3>심각도 (Severity)</h3><p><b style="color:#ffc14d">WARNING</b> 주의 · <b class="up">CRITICAL</b> 심각(임계치의 2배 초과 등).</p></div>
         </div>
@@ -240,16 +292,21 @@
         if (interval === "1d") return new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
         return Math.floor(ms / 1000) + 9 * 3600;
     }
-    function chgHtml(pct, closed) {
+    function chgHtml(pct, closed, source) {
         const tag = closed ? ' <span class="ctag">종가</span>' : "";
-        if (pct == null) return `<span class="flat">–</span>${tag}`;
+        const sourceTag = source === "TOSS_RANKING" ? ' <span class="ctag">토스 공식</span>'
+            : source === "UNADJUSTED_DAILY_CANDLES" ? ' <span class="ctag">일봉 계산</span>' : "";
+        if (pct == null) return `<span class="flat">데이터 없음</span>${tag}${sourceTag}`;
         const cls = pct > 0 ? "up" : (pct < 0 ? "down" : "flat");
         const arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "–");
-        return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>${tag}`;
+        return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>${tag}${sourceTag}`;
     }
-    function ratioBar(bid, ask) {
+    function ratioBar(bid, ask, status) {
         const tot = (bid || 0) + (ask || 0);
-        if (tot <= 0) return '<span class="flat">–</span>';
+        if (tot <= 0) {
+            const labels = {PENDING: "호가 준비 중", NO_DATA: "호가 미제공", UPSTREAM_ERROR: "호가 조회 실패"};
+            return `<span class="flat">${labels[status] || "호가 없음"}</span>`;
+        }
         const bp = Math.round(bid / tot * 100);
         const sp = 100 - bp;
         const title = `매수잔량 ${Number(bid).toLocaleString("ko-KR")}주 / 매도잔량 ${Number(ask).toLocaleString("ko-KR")}주`;
@@ -269,14 +326,17 @@
 
         body.innerHTML = lastBoard.map((it, i) => {
             const nm = it.name || it.code;
-            const basis = it.previousClose == null ? "기준가 없음" : `전일 기준가 ${fmtKRW(it.previousClose)}원`;
+            const observed = it.priceObservedAt ? new Date(it.priceObservedAt).toLocaleTimeString("ko-KR") : "시각 없음";
+            const source = it.changeSource === "TOSS_RANKING" ? "토스 공식 랭킹"
+                : it.changeSource === "UNADJUSTED_DAILY_CANDLES" ? "무수정 일봉 계산" : "출처 없음";
+            const basis = it.previousClose == null ? "기준가 없음" : `전일 기준가 ${fmtKRW(it.previousClose)}원 · ${source} · ${observed}`;
             return `<tr data-code="${escapeHtml(it.code)}" class="${it.code === selectedCode ? "sel" : ""}">` +
                 `<td class="rank">${i + 1}</td>` +
                 `<td><span class="nm">${escapeHtml(nm)}</span> <span class="cd">${escapeHtml(it.code)}</span></td>` +
                 `<td class="num">${fmtKRW(it.price)}</td>` +
-                `<td class="num" title="${basis}">${chgHtml(it.changePercent, it.closed)}</td>` +
+                `<td class="num" title="${basis}">${chgHtml(it.changePercent, it.closed, it.changeSource)}</td>` +
                 `<td class="num">${fmtVolume(it.volume)}</td>` +
-                `<td>${ratioBar(it.bidVolume, it.askVolume)}</td>` +
+                `<td>${ratioBar(it.bidVolume, it.askVolume, it.orderbookStatus)}</td>` +
                 `<td class="sector">${SECTORS[it.code] || "-"}</td></tr>`;
         }).join("");
 
@@ -306,7 +366,7 @@
         document.getElementById("sideNm").textContent = it.name || it.code;
         document.getElementById("sideCd").textContent = it.code;
         document.getElementById("sidePx").textContent = fmtKRW(it.price);
-        document.getElementById("sideChg").innerHTML = chgHtml(it.changePercent, it.closed);
+        document.getElementById("sideChg").innerHTML = chgHtml(it.changePercent, it.closed, it.changeSource);
     }
 
     // 우측 미니 차트(일봉)
@@ -405,33 +465,196 @@
         }));
     })();
 
-    // ===== 이상거래 + 리스크/감사 =====
+    // ===== 설명 가능한 탐지 사건 + 리스크/감사 =====
     const RULE_LABELS = {
         PRICE_LIMIT: "가격제한폭", PRICE_SPIKE: "가격 급변동",
-        VOLUME_SURGE: "거래량 급증", ORDERBOOK_IMBALANCE: "호가 불균형", INVESTMENT_WARNING: "투자경고"
+        VOLUME_SURGE: "거래량 급증", ORDERBOOK_IMBALANCE: "호가 불균형", INVESTMENT_WARNING: "투자경고",
+        PRICE_VOLUME_SURGE: "가격·거래량 동시 급증"
     };
-    const rows = document.getElementById("rows");
-    let anomalies = [], anomalyEmpty = true;
+    const STATUS_LABELS = {NEW:"신규", REVIEWING:"검토 중", WATCHING:"관찰 중", DISMISSED:"기각",
+        ESCALATED:"상위 검토", CLOSED:"종결"};
+    const REASON_LABELS = {MARKET_WIDE_MOVE:"시장 전체 동반 움직임", SECTOR_WIDE_MOVE:"동일 업종 동반 움직임",
+        OPEN_OR_CLOSE_EFFECT:"장 시작 또는 장 마감 효과", EXPECTED_HIGH_VOLATILITY:"예상 가능한 고변동성",
+        PUBLIC_EVENT:"확인된 공개 공시 또는 기업 이벤트", DATA_ERROR:"데이터 오류",
+        TEMPORARY_ORDERBOOK_DISTORTION:"일시적 호가 왜곡", NEEDS_FURTHER_REVIEW:"추가 확인 필요",
+        INACTIVITY:"비활성 자동 종결", OTHER:"기타"};
+    let anomalies = [], cases = [], selectedCaseId = null, csrfPromise = null, caseChartInstance = null, casePage = 0;
     function fmtTime(iso) { if (!iso) return "-"; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleTimeString("ko-KR"); }
-    function anomalyRow(a, isNew) {
-        const tr = document.createElement("tr");
-        if (isNew) tr.className = "new";
-        const severity = ["INFO", "WARNING", "CRITICAL"].includes(a.severity) ? a.severity : "INFO";
-        const code = escapeHtml(a.stockCode ?? "-");
-        const stock = a.stockName
-            ? `<span class="nm">${escapeHtml(a.stockName)}</span> <span class="cd">${code}</span>`
-            : `<code>${code}</code>`;
-        tr.innerHTML = `<td>${escapeHtml(fmtTime(a.detectedAt))}</td><td>${stock}</td>` +
-            `<td>${escapeHtml(RULE_LABELS[a.ruleType] ?? a.ruleType)}</td>` +
-            `<td><span class="sev ${severity}">${severity}</span></td><td>${escapeHtml(a.message)}</td>`;
-        return tr;
+    function fmtDateTime(iso) { if (!iso) return "-"; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString("ko-KR"); }
+    function fmtMetric(value, unit) {
+        if (value == null) return "해당 없음";
+        const number = Number(value);
+        const rendered = Number.isFinite(number) ? number.toLocaleString("ko-KR", {maximumFractionDigits: 2}) : String(value);
+        return `${rendered}${unit ? " " + unit : ""}`;
     }
-    function addAnomaly(a, isNew) {
-        if (anomalyEmpty) { rows.innerHTML = ""; anomalyEmpty = false; }
-        anomalies.unshift(a);
-        rows.prepend(anomalyRow(a, isNew));
-        renderRisk();
+    function caseCard(item) {
+        const tags = (item.contextTags || []).slice(0, 4).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+        return `<button class="case-card ${item.id === selectedCaseId ? "active" : ""}" data-case-id="${Number(item.id)}">` +
+            `<div class="case-card-head"><div><span class="nm">${escapeHtml(item.stockName || item.stockCode)}</span> ` +
+            `<span class="cd">${escapeHtml(item.stockCode)}</span><h3>${escapeHtml(item.title)}</h3></div>` +
+            `<div class="score" aria-label="복합 이상징후 점수 ${Number(item.score)}점">${Number(item.score)}<small>/100</small></div></div>` +
+            `<p>${escapeHtml(item.summary)}</p><div class="case-meta">` +
+            `<span class="attention ${escapeHtml(item.attentionLevel)}">관심 ${escapeHtml(item.attentionLevel)}</span>` +
+            `<span class="state">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>` +
+            `<span>신호 ${Number(item.signalCount)}개</span><span>${escapeHtml(fmtDateTime(item.lastDetectedAt))}</span></div>` +
+            `<div class="tag-row">${tags}</div></button>`;
     }
+    async function loadCases() {
+        const status = document.getElementById("caseStatusFilter").value;
+        const url = `/api/cases?page=${casePage}&size=50&sort=lastDetectedAt&direction=desc${status ? "&status=" + encodeURIComponent(status) : ""}`;
+        const error = document.getElementById("caseListError");
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("사건 목록을 불러오지 못했습니다.");
+            const page = await response.json();
+            cases = page.content || [];
+            document.getElementById("caseCount").textContent = `총 ${Number(page.totalElements || 0).toLocaleString("ko-KR")}건`;
+            const totalPages = Math.max(Number(page.totalPages || 0), 1);
+            casePage = Math.min(Number(page.page || 0), totalPages - 1);
+            document.getElementById("casePageLabel").textContent = `${casePage + 1} / ${totalPages}`;
+            document.getElementById("casePrev").disabled = casePage <= 0;
+            document.getElementById("caseNext").disabled = casePage + 1 >= totalPages;
+            document.getElementById("caseList").innerHTML = cases.length
+                ? cases.map(caseCard).join("") : '<div class="note">조건에 맞는 탐지 사건이 없습니다.</div>';
+            error.style.display = "none";
+        } catch (exception) {
+            error.textContent = exception.message || "사건 목록을 불러오지 못했습니다.";
+            error.style.display = "block";
+        }
+    }
+    document.getElementById("caseStatusFilter").addEventListener("change", () => { casePage = 0; loadCases(); });
+    document.getElementById("casePrev").addEventListener("click", () => { if (casePage > 0) { casePage--; loadCases(); } });
+    document.getElementById("caseNext").addEventListener("click", () => { casePage++; loadCases(); });
+    document.getElementById("caseList").addEventListener("click", event => {
+        const card = event.target.closest("[data-case-id]");
+        if (card) openCase(Number(card.dataset.caseId));
+    });
+
+    function metricsHtml(signal) {
+        return `<div class="metric-grid">` +
+            `<div class="metric"><div class="label">관측값</div><div class="value">${escapeHtml(fmtMetric(signal.observedValue, signal.valueUnit))}</div></div>` +
+            `<div class="metric"><div class="label">비교 기준</div><div class="value">${escapeHtml(fmtMetric(signal.baselineValue, signal.valueUnit))}</div></div>` +
+            `<div class="metric"><div class="label">탐지 임계값</div><div class="value">${escapeHtml(fmtMetric(signal.thresholdValue, signal.valueUnit))}</div></div></div>`;
+    }
+    function signalHtml(signal) {
+        const measurements = (signal.measurements || []).map(value =>
+            `<div class="metric"><div class="label">${escapeHtml(value.label)}</div>` +
+            `<div class="value">${escapeHtml(fmtMetric(value.observedValue, value.unit))}</div></div>`).join("");
+        return `<article class="signal-card"><div><b>${escapeHtml(RULE_LABELS[signal.ruleType] || signal.title)}</b> ` +
+            `<span class="sev ${escapeHtml(signal.severity)}">${escapeHtml(signal.severity)}</span> <span class="updated">${escapeHtml(fmtDateTime(signal.detectedAt))}</span></div>` +
+            `<p><b>${escapeHtml(signal.summary)}</b></p><p>${escapeHtml(signal.explanation)}</p>${metricsHtml(signal)}` +
+            `${measurements ? `<div class="metric-grid" style="margin-top:8px;">${measurements}</div>` : ""}` +
+            `<p class="updated">비교 범위: ${escapeHtml(signal.lookbackDescription || "해당 없음")}</p></article>`;
+    }
+    function renderCaseDetail(detail) {
+        const contributions = (detail.scoreContributions || []).map(item =>
+            `<tr><td>${escapeHtml(RULE_LABELS[item.ruleType] || item.ruleType)}</td><td>${Number(item.points)}점</td>` +
+            `<td>${escapeHtml(item.summary)}</td><td>${escapeHtml(fmtMetric(item.observedValue, item.unit))}</td></tr>`).join("");
+        const checks = [...new Set((detail.signals || []).flatMap(signal => signal.recommendedChecks || []))];
+        const tags = (detail.contextTags || []).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+        const notes = (detail.notes || []).map(note => `<li><b>${escapeHtml(note.author)}</b> · ${escapeHtml(fmtDateTime(note.createdAt))}<br>${escapeHtml(note.note)}</li>`).join("");
+        const history = (detail.history || []).map(item => `<li>${escapeHtml(fmtDateTime(item.changedAt))} · ` +
+            `${escapeHtml(item.fromStatus || "생성")} → <b>${escapeHtml(item.toStatus)}</b> · ${escapeHtml(item.actor)}` +
+            `${item.reason ? ` · ${escapeHtml(REASON_LABELS[item.reason] || item.reason)}` : ""}</li>`).join("");
+        const reasonOptions = Object.entries(REASON_LABELS).filter(([key]) => key !== "INACTIVITY")
+            .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`).join("");
+        document.getElementById("caseDetail").innerHTML =
+            `<div class="case-card-head"><div><h2>${escapeHtml(detail.stockName || detail.stockCode)} <span class="cd">${escapeHtml(detail.stockCode)}</span></h2>` +
+            `<div class="updated">${escapeHtml(fmtDateTime(detail.firstDetectedAt))} ~ ${escapeHtml(fmtDateTime(detail.lastDetectedAt))}</div></div>` +
+            `<div class="score">${Number(detail.score)}<small>/100</small></div></div>` +
+            `<h3>${escapeHtml(detail.title)}</h3><p class="detail-summary">${escapeHtml(detail.summary)}</p>` +
+            `<div class="tag-row">${tags}<span class="attention ${escapeHtml(detail.attentionLevel)}">관심 ${escapeHtml(detail.attentionLevel)}</span>` +
+            `<span class="state">${escapeHtml(STATUS_LABELS[detail.status] || detail.status)}</span></div>` +
+            `<p class="warning-box">${escapeHtml(detail.caution)}</p>` +
+            `<h3>점수 구성</h3><p class="hint">${escapeHtml(detail.scoreExplanation)} · 동시 신호 보너스 ${Number(detail.simultaneousSignalBonus)}점</p>` +
+            `<table class="anom"><thead><tr><th>규칙</th><th>기여</th><th>근거</th><th>관측값</th></tr></thead><tbody>${contributions}</tbody></table>` +
+            `<h3>탐지 전후 가격·거래량</h3><div id="caseChart"><div class="empty">차트 불러오는 중…</div></div>` +
+            `<h3>탐지 타임라인과 쉬운 설명</h3>${(detail.signals || []).map(signalHtml).join("")}` +
+            `<h3>추가 확인 사항</h3><ul class="check-list">${checks.map(value => `<li>${escapeHtml(value)}</li>`).join("")}</ul>` +
+            `<h3>검토 상태</h3><div class="review-form"><label>변경할 상태<select id="reviewStatus">` +
+            `${Object.keys(STATUS_LABELS).map(value => `<option value="${value}" ${value === detail.status ? "selected" : ""}>${escapeHtml(STATUS_LABELS[value])}</option>`).join("")}</select></label>` +
+            `<label>종결 사유<select id="reviewReason"><option value="">해당 없음</option>${reasonOptions}</select></label>` +
+            `<label>상세 사유<input id="reviewDetail" maxlength="500" placeholder="확인한 공개 근거를 간단히 기록"></label>` +
+            `<button class="action" id="saveStatus">상태 저장</button><div id="statusMessage" class="form-message"></div></div>` +
+            `<h3>검토 메모</h3><div class="review-form"><textarea id="caseNote" maxlength="2000" rows="3" placeholder="판단 근거와 후속 확인 내용을 기록"></textarea>` +
+            `<button class="action" id="saveNote">메모 추가</button><div id="noteMessage" class="form-message"></div></div>` +
+            `<ul class="history-list">${notes || "<li>작성된 메모가 없습니다.</li>"}</ul>` +
+            `<h3>상태 변경 이력</h3><ul class="history-list">${history}</ul>`;
+        bindReviewActions(detail);
+        loadCaseChart(detail);
+    }
+    async function openCase(id) {
+        selectedCaseId = id;
+        document.querySelectorAll("[data-case-id]").forEach(card => card.classList.toggle("active", Number(card.dataset.caseId) === id));
+        document.getElementById("caseDetail").innerHTML = '<div class="note">사건 상세를 불러오는 중…</div>';
+        try {
+            const response = await fetch(`/api/cases/${id}`);
+            if (!response.ok) throw new Error("사건 상세를 불러오지 못했습니다.");
+            renderCaseDetail(await response.json());
+        } catch (exception) {
+            document.getElementById("caseDetail").innerHTML = `<div class="note">${escapeHtml(exception.message)}</div>`;
+        }
+    }
+    async function csrfToken() {
+        if (!csrfPromise) csrfPromise = fetch("/api/csrf").then(response => {
+            if (!response.ok) throw new Error("CSRF 토큰을 가져오지 못했습니다.");
+            return response.json();
+        });
+        return csrfPromise;
+    }
+    async function writeApi(url, method, body) {
+        const csrf = await csrfToken();
+        const response = await fetch(url, {method, headers:{"Content-Type":"application/json", [csrf.headerName]:csrf.token}, body:JSON.stringify(body)});
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.code === "CASE_VERSION_CONFLICT" ? "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요." : "요청을 처리하지 못했습니다.");
+        }
+        return response.json();
+    }
+    function bindReviewActions(detail) {
+        document.getElementById("saveStatus").addEventListener("click", async event => {
+            const button = event.currentTarget, message = document.getElementById("statusMessage");
+            button.disabled = true; message.textContent = "저장 중…";
+            try {
+                await writeApi(`/api/cases/${detail.id}/status`, "PATCH", {status:document.getElementById("reviewStatus").value,
+                    version:detail.version, reason:document.getElementById("reviewReason").value || null, detail:document.getElementById("reviewDetail").value || null});
+                await loadCases(); await openCase(detail.id);
+            } catch (exception) { message.textContent = exception.message; button.disabled = false; }
+        });
+        document.getElementById("saveNote").addEventListener("click", async event => {
+            const button = event.currentTarget, message = document.getElementById("noteMessage");
+            button.disabled = true; message.textContent = "저장 중…";
+            try { await writeApi(`/api/cases/${detail.id}/notes`, "POST", {note:document.getElementById("caseNote").value}); await openCase(detail.id); }
+            catch (exception) { message.textContent = exception.message; button.disabled = false; }
+        });
+    }
+    async function loadCaseChart(detail) {
+        try {
+            const response = await fetch(`/api/stocks/${detail.stockCode}/context?count=120`);
+            if (!response.ok) throw new Error("시장 맥락 데이터 없음");
+            const context = await response.json();
+            const el = document.getElementById("caseChart");
+            if (!el) return;
+            el.innerHTML = "";
+            if (caseChartInstance && typeof caseChartInstance.remove === "function") caseChartInstance.remove();
+            caseChartInstance = LightweightCharts.createChart(el, {layout:{background:{color:"transparent"},textColor:"#9aa0aa"},
+                grid:{vertLines:{color:"#1b1f27"},horzLines:{color:"#1b1f27"}}, width:el.clientWidth,height:280,timeScale:{timeVisible:true}});
+            const candles = caseChartInstance.addCandlestickSeries({upColor:"#ff6b6b",downColor:"#5b9dff",borderVisible:false});
+            const volume = caseChartInstance.addHistogramSeries({priceFormat:{type:"volume"},priceScaleId:""});
+            volume.priceScale().applyOptions({scaleMargins:{top:.78,bottom:0}});
+            const byTime = new Map(); (context.candles || []).forEach(c => byTime.set(toBarTime(c.timestamp,"1m"), c));
+            const values = [...byTime.entries()].sort((a,b) => a[0]-b[0]);
+            candles.setData(values.map(([time,c]) => ({time,open:+c.open,high:+c.high,low:+c.low,close:+c.close})));
+            volume.setData(values.map(([time,c]) => ({time,value:c.volume,color:+c.close>=+c.open?"#ff6b6b55":"#5b9dff55"})));
+            const markers = (detail.signals || []).map(signal => ({time:toBarTime(signal.marketObservedAt || signal.detectedAt,"1m"),position:"aboveBar",color:"#ffc14d",shape:"arrowDown",text:RULE_LABELS[signal.ruleType] || "탐지"}));
+            if (typeof candles.setMarkers === "function") candles.setMarkers(markers);
+            caseChartInstance.timeScale().fitContent();
+        } catch (exception) {
+            const el = document.getElementById("caseChart"); if (el) el.innerHTML = `<div class="empty">${escapeHtml(exception.message)}</div>`;
+        }
+    }
+    loadCases();
+    fetch("/api/anomalies").then(response => response.json()).then(list => { anomalies = list || []; renderRisk(); }).catch(() => {});
     function renderRisk() {
         const crit = anomalies.filter(a => a.severity === "CRITICAL").length;
         const warn = anomalies.filter(a => a.severity === "WARNING").length;
@@ -451,14 +674,33 @@
         el.textContent = on ? "● 연결됨" : "● 연결 끊김";
         el.className = "status" + (on ? " on" : "");
     }
-    fetch("/api/anomalies").then(r => r.json()).then(list => {
-        anomalies = (list || []).slice();   // 최신순
-        if (anomalies.length) { anomalyEmpty = false; rows.innerHTML = ""; anomalies.forEach(a => rows.appendChild(anomalyRow(a, false))); }
+    function addAnomaly(anomaly) {
+        anomalies.unshift(anomaly);
         renderRisk();
-    }).catch(() => {});
+        loadCases();
+        if (selectedCaseId) openCase(selectedCaseId);
+    }
 
     // 감사 로그 (탭 열 때 로드)
     function loadAudit() {
+        fetch("/api/analytics/rules").then(r => {
+            if (!r.ok) throw new Error("규칙별 검토 결과를 불러오지 못했습니다.");
+            return r.json();
+        }).then(list => {
+            const body = document.getElementById("ruleAnalyticsRows");
+            if (!list || list.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" class="empty">아직 검토 결과가 없습니다.</td></tr>';
+                return;
+            }
+            body.innerHTML = list.map(item => `<tr><td>${escapeHtml(RULE_LABELS[item.ruleType] || item.ruleType)}</td>` +
+                `<td class="num">${Number(item.occurrenceCount).toLocaleString("ko-KR")}</td>` +
+                `<td class="num">${Number(item.caseCount).toLocaleString("ko-KR")}</td>` +
+                `<td class="num">${Number(item.dismissedPercent).toFixed(1)}%</td>` +
+                `<td class="num">${Number(item.escalatedPercent).toFixed(1)}%</td>` +
+                `<td class="num">${item.averageReviewSeconds == null ? "-" : Math.round(Number(item.averageReviewSeconds)) + "초"}</td></tr>`).join("");
+        }).catch(exception => {
+            document.getElementById("ruleAnalyticsRows").innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(exception.message)}</td></tr>`;
+        });
         fetch("/api/audit").then(r => r.json()).then(list => {
             const body = document.getElementById("auditRows");
             if (!list || list.length === 0) { body.innerHTML = '<tr><td colspan="5" class="empty">감사 로그가 없습니다. (토큰 발급 시 기록)</td></tr>'; return; }
@@ -477,7 +719,7 @@
         stomp.connect({}, () => {
             setStatus(true);
             stomp.subscribe("/topic/prices", msg => renderBoard(JSON.parse(msg.body)));
-            stomp.subscribe("/topic/anomalies", msg => addAnomaly(JSON.parse(msg.body), true));
+            stomp.subscribe("/topic/anomalies", msg => addAnomaly(JSON.parse(msg.body)));
         }, () => { setStatus(false); setTimeout(connect, 3000); });
     }
     connect();

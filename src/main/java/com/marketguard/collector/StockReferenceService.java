@@ -1,5 +1,6 @@
 package com.marketguard.collector;
 
+import com.marketguard.application.port.StockNameResolver;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.TossApiProperties;
 import java.util.LinkedHashSet;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class StockReferenceService {
+public class StockReferenceService implements StockNameResolver {
 
     private final TossApiProperties tossProps;
     private final TossMarketDataClient marketDataClient;
@@ -32,6 +33,7 @@ public class StockReferenceService {
         this.symbolUniverse = symbolUniverse;
     }
 
+    @Override
     public String nameOf(String stockCode) {
         return names.get(stockCode);
     }

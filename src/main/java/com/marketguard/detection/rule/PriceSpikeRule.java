@@ -1,9 +1,13 @@
 package com.marketguard.detection.rule;
 
 import com.marketguard.detection.model.Anomaly;
+import com.marketguard.detection.model.AnomalyEvidence;
 import com.marketguard.detection.model.DecimalMath;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.Direction;
+import com.marketguard.detection.model.EvidenceMeasurement;
 import com.marketguard.detection.model.MarketPrice;
+import com.marketguard.detection.model.MarketContextTags;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import java.math.BigDecimal;
@@ -58,12 +62,40 @@ public class PriceSpikeRule implements DetectionRule {
                     : DecimalMath.display(changePercent).toPlainString();
             String message = "단기 가격 급변동: 현재가 %s (직전 평균 %s 대비 %s%%)"
                     .formatted(current.toPlainString(), DecimalMath.display(average).toPlainString(), signedChange);
-            return Optional.of(Anomaly.of(
+            BigDecimal thresholdRatio = changePercent.abs().divide(
+                    threshold, DecimalMath.CALCULATION_SCALE, DecimalMath.ROUNDING_MODE);
+            Direction direction = changePercent.signum() >= 0 ? Direction.UP : Direction.DOWN;
+            AnomalyEvidence evidence = AnomalyEvidence.builder(
+                            "단기 가격 급변동",
+                            "현재가가 최근 평균보다 %s%% %s했습니다."
+                                    .formatted(DecimalMath.display(changePercent.abs()).toPlainString(),
+                                            direction == Direction.UP ? "상승" : "하락"),
+                            "최근 가격 흐름과 비교해 주가가 짧은 시간에 빠르게 움직였습니다. "
+                                    + "시장 전체 움직임이나 공개된 기업 이벤트의 영향인지 추가 확인이 필요합니다.")
+                    .values(changePercent, BigDecimal.ZERO, threshold, thresholdRatio, "%")
+                    .lookback("최근 " + Math.min(recent.size(), lookback) + "개 가격 스냅샷 평균")
+                    .direction(direction)
+                    .contextTags(MarketContextTags.at(context.evaluationTime(),
+                            direction == Direction.UP ? "가격 상승" : "가격 하락"))
+                    .recommendedChecks(List.of(
+                            "같은 시간의 거래량 변화를 확인하세요.",
+                            "시장 지수와 동일 업종 종목도 함께 움직였는지 확인하세요.",
+                            "관련 공시나 공개된 기업 이벤트가 있는지 확인하세요."))
+                    .marketObservedAt(context.current().capturedAt())
+                    .measurements(List.of(
+                            new EvidenceMeasurement("current_price", "현재가", current, null, null, null, "원"),
+                            new EvidenceMeasurement("recent_average_price", "최근 평균가", average, null,
+                                    null, null, "원"),
+                            new EvidenceMeasurement("price_change_percent", "평균 대비 변동률", changePercent,
+                                    BigDecimal.ZERO, threshold, thresholdRatio, "%")))
+                    .build();
+            return Optional.of(Anomaly.explained(
                     context.current().stockCode(),
                     RuleType.PRICE_SPIKE,
                     severity,
                     message,
-                    context.evaluationTime()));
+                    context.evaluationTime(),
+                    evidence));
         }
         return Optional.empty();
     }

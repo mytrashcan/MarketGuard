@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class RuleEngineTest {
@@ -59,6 +60,17 @@ class RuleEngineTest {
                 matchingRule(RuleType.PRICE_SPIKE), matchingRule(RuleType.PRICE_SPIKE))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unique");
+    }
+
+    @Test
+    void reportsRuleOutcomeWithoutBreakingIsolation() {
+        AtomicReference<RuleEvaluationOutcome> outcome = new AtomicReference<>();
+        RuleEngine engine = new RuleEngine(List.of(matchingRule(RuleType.PRICE_SPIKE)),
+                (ruleType, value, duration) -> outcome.set(value));
+
+        engine.evaluate(context);
+
+        assertThat(outcome).hasValue(RuleEvaluationOutcome.SIGNAL);
     }
 
     private DetectionRule matchingRule(RuleType type) {

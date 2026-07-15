@@ -1,5 +1,7 @@
 package com.marketguard.dashboard;
 
+import com.marketguard.application.CaseNotFoundException;
+import com.marketguard.application.StaleCaseVersionException;
 import com.marketguard.collector.client.TossApiException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
@@ -13,8 +15,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 /** Maps failures to safe, stable HTTP responses for the dashboard API. */
 @RestControllerAdvice
@@ -30,6 +34,24 @@ public class ApiExceptionHandler {
     })
     ResponseEntity<ApiError> badRequest(Exception ignored) {
         return ResponseEntity.badRequest().body(new ApiError("INVALID_REQUEST", "The request is invalid"));
+    }
+
+    @ExceptionHandler(CaseNotFoundException.class)
+    ResponseEntity<ApiError> notFound(CaseNotFoundException ignored) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError("CASE_NOT_FOUND", "The requested case was not found"));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiError> resourceNotFound(NoResourceFoundException ignored) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError("RESOURCE_NOT_FOUND", "The requested resource was not found"));
+    }
+
+    @ExceptionHandler({StaleCaseVersionException.class, ObjectOptimisticLockingFailureException.class})
+    ResponseEntity<ApiError> conflict(Exception ignored) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError("CASE_VERSION_CONFLICT", "The case was modified; reload and try again"));
     }
 
     @ExceptionHandler(TossApiException.class)

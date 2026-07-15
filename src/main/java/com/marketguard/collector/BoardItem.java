@@ -2,6 +2,7 @@ package com.marketguard.collector;
 
 import com.marketguard.detection.model.DecimalMath;
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * 시세 보드(랭킹 테이블) 1행 DTO.
@@ -20,7 +21,11 @@ public record BoardItem(
         long volume,
         long bidVolume,
         long askVolume,
-        boolean closed
+        boolean closed,
+        PriceChangeSource changeSource,
+        Instant priceObservedAt,
+        OrderbookStatus orderbookStatus,
+        Instant orderbookObservedAt
 ) {
     public static BoardItem of(
             String code, String name, BigDecimal livePrice, BoardDataService.Detail detail) {
@@ -29,14 +34,25 @@ public record BoardItem(
         long bidVolume = detail != null ? detail.bidVolume() : 0L;
         long askVolume = detail != null ? detail.askVolume() : 0L;
         BigDecimal lastClose = detail != null ? detail.lastClose() : null;
+        BigDecimal officialChangeRate = detail != null ? detail.officialChangeRate() : null;
+        PriceChangeSource changeSource = detail != null
+                ? detail.changeSource() : PriceChangeSource.UNAVAILABLE;
 
-        BigDecimal price = livePrice != null ? livePrice : lastClose;
+        // 랭킹 가격·기준가·등락률은 동일 집계 시각의 공식 원자적 묶음이다.
+        // 서로 다른 시점의 실시간가와 랭킹 기준가를 섞지 않아 토스 공식 등락률과 일치시킨다.
+        BigDecimal price = changeSource == PriceChangeSource.TOSS_RANKING ? lastClose
+                : livePrice != null ? livePrice : lastClose;
         boolean closed = livePrice == null && price != null;   // 종가로 대체된 경우
 
-        BigDecimal changePercent = null;
-        if (price != null && price.signum() > 0 && prevClose != null && prevClose.signum() > 0) {
+        BigDecimal changePercent = officialChangeRate == null
+                ? null : officialChangeRate.multiply(BigDecimal.valueOf(100));
+        if (changePercent == null && price != null && price.signum() > 0
+                && prevClose != null && prevClose.signum() > 0) {
             changePercent = DecimalMath.percentageChange(price, prevClose);
         }
-        return new BoardItem(code, name, price, prevClose, changePercent, volume, bidVolume, askVolume, closed);
+        return new BoardItem(code, name, price, prevClose, changePercent, volume, bidVolume, askVolume, closed,
+                changeSource, detail == null ? null : detail.priceObservedAt(),
+                detail == null ? OrderbookStatus.PENDING : detail.orderbookStatus(),
+                detail == null ? null : detail.orderbookObservedAt());
     }
 }
