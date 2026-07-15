@@ -1,107 +1,141 @@
-# MarketGuard — 시장감시 · 이상거래 탐지 시스템
+# MarketGuard
 
 [![CI](https://github.com/mytrashcan/MarketGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/mytrashcan/MarketGuard/actions/workflows/ci.yml)
 
-토스증권 Open API로 시세를 수집해 **룰 기반으로 이상거래를 탐지**하고 실시간으로 알리는 미니 시장감시 시스템입니다.
-한국거래소 시장감시본부 / 금융감독원 투자자보호 업무를 작게 재현한 **토이 프로젝트**입니다.
+MarketGuard는 토스증권 Open API의 **공개 시장 데이터만 읽어** 규칙 기반 이상 징후를 탐지하고, 운영자 대시보드에 기록·알림하는 포트폴리오 프로젝트입니다.
 
-> ⚠️ 매매(주문) 기능은 사용하지 않습니다. **read-only 수집·분석 중심**으로, 실제 자금이 움직이지 않습니다.
+> 주문, 계좌 조회, 이체, 자금 이동 기능은 구현하지 않습니다. 탐지 결과는 투자 조언이나 규제기관 수준의 시장감시 판정이 아닙니다.
+
+## 핵심 특성
+
+- 현재가·호가·캔들·가격제한폭·투자경고·거래 캘린더만 조회
+- `BigDecimal` 기반 가격/비율 계산과 공식 시장 타임스탬프 보존
+- 5개 독립 탐지 규칙, 규칙별 장애 격리, 영속적 원자 쿨다운
+- 타임아웃, 공식 호출 그룹별 rate limit, 선택적 재시도, `Retry-After`, circuit breaker
+- 운영자 HTTP Basic 인증, strict WebSocket Origin, 입력 제한, peer별 API rate limit, CSP/SRI
+- PostgreSQL + Flyway + Hibernate schema validation
+- Prometheus 지표, liveness/readiness, 안전한 감사 로그
+- 실제 PostgreSQL Testcontainers 테스트와 Docker Compose 스모크 테스트
 
 ## 아키텍처
 
 ```mermaid
-flowchart TD
-    Toss["토스증권 Open API"] -->|OAuth2 · REST| Client["TossMarketDataClient<br/>Retry · CircuitBreaker"]
-    Client --> Scanner["MarketDataCollector<br/>2단계 스캔 · 정규장 게이트 · 쿨다운"]
-    Client --> Stream["PriceStreamScheduler<br/>실시간 시세 보드"]
-    Scanner --> Engine["RuleEngine<br/>전략패턴 · 탐지 룰 5종"]
-    Engine --> Notifier["AnomalyNotifier"]
-    Notifier -->|WS /topic/anomalies| Board["관제 대시보드"]
-    Stream -->|WS /topic/prices| Board
-    Scanner --> Store[("JPA · H2 / PostgreSQL+Flyway")]
-    Engine --> Store
-    Audit["AuditAspect @Audited"] --> Store
+flowchart LR
+    Browser["Operator browser"] -->|"Basic auth / HTTPS"| Web["Dashboard + read API"]
+    Web --> App["Application services"]
+    Scheduler["Bounded schedulers"] --> App
+    App --> Core["Framework-free detection core"]
+    App --> DB[("PostgreSQL / Flyway")]
+    App -->|"OAuth2 + bounded REST"| Toss["Toss Open API"]
+    Core --> App
+    App -->|"STOMP alerts"| Browser
 ```
 
-공통 관심사: 회복탄력성(Resilience4j) · 감사 로그(AOP) · 데이터 저장(JPA/Flyway) · 보안(토큰/시크릿) · 정규장·공휴일 게이트
+소스 의존성은 `config/collector/dashboard/domain -> application/detection` 방향입니다. `detection` 코어에는 Spring/JPA/외부 계층 import가 없으며 아키텍처 테스트가 이를 고정합니다. 상세 내용은 [architecture.md](docs/architecture.md)를 참고하세요.
 
-패키지 구조:
+## 탐지 규칙
 
-```
-com.marketguard
-├── config        설정·프로퍼티 (RestClient, ConfigurationProperties)
-├── collector     외부 API 연동 (auth 토큰 관리 / client 시세 조회 / scheduler 폴링)
-├── detection     탐지 도메인 (model 값객체 / rule 전략 / engine 평가)
-├── alert         이상 신호 전파 (AnomalyNotifier → WebSocket)
-├── domain        영속 엔티티·리포지토리 (marketdata / anomaly)
-└── dashboard     조회 API
-```
+| 규칙 | 판단 기준 |
+|---|---|
+| `PRICE_SPIKE` | 최근 가격 평균 대비 설정 비율 이상의 변동 |
+| `PRICE_LIMIT` | 상·하한가 도달 또는 설정 비율 이내 근접 |
+| `ORDERBOOK_IMBALANCE` | 총 매수/매도 잔량 비율이 임계값 이상 |
+| `VOLUME_SURGE` | 최신 분봉 거래량이 직전 평균의 임계 배수 이상 |
+| `INVESTMENT_WARNING` | 현재 유효한 투자경고·위험·단기과열·정리매매 지정 |
 
-## 기술 스택
+규칙은 독립적으로 실패하며, 한 규칙의 예외가 나머지 평가를 중단하지 않습니다. 시장 캘린더 조회에 실패하면 수집기는 stale 데이터 오탐을 피하기 위해 장 마감으로 처리합니다.
 
-- Java 17 (Gradle toolchain, foojay 자동 프로비저닝) · Spring Boot 4.1
-- Spring Web(RestClient) · Spring Data JPA · Validation · Actuator · WebSocket(STOMP) · AOP
-- Resilience4j(Retry·CircuitBreaker) · H2 (로컬) / PostgreSQL (운영 프로파일) · Lombok
-- JUnit 5 · AssertJ · Testcontainers(PostgreSQL 통합테스트)
+## 빠른 시작
 
-## 실행 방법
+요구 사항은 JDK 17과 Docker입니다.
 
 ```bash
-# 1) 그대로 실행 (API 키 없이도 기동 — 수집은 비활성)
+./gradlew clean test
 ./gradlew bootRun
+```
 
-# 2) 실제 수집 활성화 (토스 client id/secret 발급 후) — PowerShell 기준
-$env:TOSS_CLIENT_ID="..."; $env:TOSS_CLIENT_SECRET="..."
-$env:COLLECTOR_ENABLED="true"
+기본 프로파일은 안전한 로컬 개발 모드입니다.
+
+- `127.0.0.1:5050`에만 바인딩
+- 수집기 비활성화
+- 인증 비활성화
+- 메모리 H2와 로컬 H2 콘솔 사용
+
+대시보드: `http://127.0.0.1:5050/`
+
+실제 수집을 켜려면 토스 자격 증명이 필요하며, 하나라도 빠지면 기동이 실패합니다.
+
+```bash
+export TOSS_CLIENT_ID='...'
+export TOSS_CLIENT_SECRET='...'
+export COLLECTOR_ENABLED=true
 ./gradlew bootRun
-# account-id는 시세 조회엔 불필요(계좌/주문 API 전용)
 ```
 
-- **관제 대시보드(실시간): `http://localhost:5050/`** — WebSocket으로 탐지 즉시 표시 (포트는 `SERVER_PORT`로 변경 가능)
-- 같은 네트워크/외부에서 접속: `http://<내-IP>:5050/` (공유기 포트포워딩 + Windows 방화벽에서 5050 인바운드 허용 필요)
-- H2 콘솔: `http://localhost:5050/h2-console` (JDBC URL `jdbc:h2:mem:marketguard`) — 외부 공개 시에는 끄는 것을 권장
-- 조회 API:
-  - `GET /api/anomalies` — 최근 탐지된 이상거래
-  - `GET /api/stocks/{code}/snapshots` — 특정 종목 최근 시세
-- 헬스체크: `GET /actuator/health`
+## Docker Compose
 
-### 전 종목 감시 (시장 전반)
-토스 Open API에는 "전 종목 목록" 엔드포인트가 없어, 스캔 대상 종목코드를 직접 공급해야 합니다.
-KRX 정보데이터시스템(data.krx.co.kr)에서 **전종목 CSV**를 받아 경로만 지정하면 그 안의 6자리 코드 전부를 스캔합니다(파일 인코딩·CSV 형식 무관, 코드만 추출).
-```powershell
-$env:SCAN_SYMBOLS_FILE="C:\krx\krx_codes.csv"   # 비우면 classpath:symbols.txt(시연 시드) 사용
+```bash
+cp .env.example .env
+# .env의 필수 값을 편집
+docker compose up --build --wait
 ```
-스캔은 가격 기반 룰(가격 급변동)로 전 종목을 넓게 보고, 호가·캔들 등 무거운 룰은 `watch-list`(포커스) 종목에만 적용하는 2단계 구조입니다. 유니버스가 크면 `collector.poll-interval-ms`를 늘리세요.
 
-### Docker로 실행 (운영 패키징: PostgreSQL + Flyway)
-`prod` 프로파일은 PostgreSQL을 쓰고 스키마는 **Flyway 마이그레이션**(`db/migration/V1__init.sql`)으로 관리합니다.
-```powershell
-$env:TOSS_CLIENT_ID="..."; $env:TOSS_CLIENT_SECRET="..."
-docker compose up --build      # postgres + 앱(prod) 기동, http://localhost:5050
+`collector=false`이면 Toss 자격 증명 없이 안전한 운영 패키지를 확인할 수 있습니다. 실제 수집 시에만 `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET`, `COLLECTOR_ENABLED=true`를 설정하세요.
+
+Compose는 다음을 강제합니다.
+
+- DB/운영자 비밀번호에 기본값 없음
+- PostgreSQL 호스트 포트 미공개 및 named volume 사용
+- 앱 포트는 호스트 loopback에만 공개
+- non-root 앱, read-only root filesystem, capability 제거
+- readiness 통과 후 healthy 처리
+
+재현 가능한 전체 스모크:
+
+```bash
+./scripts/compose-smoke.sh
 ```
-- 키는 환경변수로만 주입되며 이미지에 포함되지 않습니다(`application-local.yml`은 `.dockerignore`로 제외).
-- 로컬 개발(H2)은 Flyway를 끄고 Hibernate가 스키마를 생성, 운영(prod)은 Flyway가 담당합니다.
 
-> 연동된 엔드포인트: 토큰 `POST /oauth2/token`, 시세 `GET /api/v1/prices`, 가격제한폭 `GET /api/v1/price-limits`,
-> 호가 `GET /api/v1/orderbook`, 캔들 `GET /api/v1/candles`. 투자경고(종목정보) 등은 해당 스펙에 맞춰 확장하세요
-> (스펙: `https://openapi.tossinvest.com/openapi-docs/latest/openapi.json`).
+## API와 운영 엔드포인트
 
-## 탐지 룰
+운영 프로파일에서는 probes를 제외한 모든 경로가 인증 대상입니다.
 
-| 룰 | 설명 | 상태 |
+| 경로 | 설명 | 익명 접근 |
 |---|---|---|
-| 단기 가격 급변동 | 현재가가 직전 평균 대비 ±N% 이상 변동 | ✅ 구현 |
-| 가격제한폭 도달 | 상·하한가 도달/근접 (`/api/v1/price-limits`) | ✅ 구현 |
-| 호가 불균형 | 매수/매도 총잔량 비율 임계치 (`/api/v1/orderbook`) | ✅ 구현 |
-| 거래량 급증 | 최근 봉 거래량이 직전 평균의 N배 (`/api/v1/candles`) | ✅ 구현 |
-| 거래소 지정종목 | 투자경고·투자위험·단기과열·정리매매 (`/api/v1/stocks/{symbol}/warnings`) | ✅ 구현 |
+| `GET /api/prices/live` | watch list 현재 보드 | 아니요 |
+| `GET /api/stocks/{code}/candles?interval=1m&count=60` | 1분/일 캔들, `count=1..200` | 아니요 |
+| `GET /api/anomalies?limit=50` | 최근 이상 기록, `limit=1..200` | 아니요 |
+| `GET /api/audit?limit=100` | 최근 감사 기록 | 아니요 |
+| `GET /api/stocks/{code}/snapshots?limit=50` | 최근 시세 스냅샷 | 아니요 |
+| `GET /actuator/health/liveness` | 프로세스 생존 | 예 |
+| `GET /actuator/health/readiness` | 앱/DB 준비 상태 | 예 |
+| `GET /actuator/prometheus` | Prometheus 지표 | 아니요 |
 
-새 룰은 `DetectionRule` 인터페이스만 구현해 빈으로 등록하면 `RuleEngine`이 자동 인식합니다(OCP).
+잘못된 입력은 안정적인 `400` JSON으로, 영구 upstream 오류는 `502`, 일시적 오류/회로 차단은 `503`으로 반환합니다. 내부 예외·upstream body·자격 증명은 응답에 포함하지 않습니다.
 
-## 로드맵
+## 검증
 
-- [x] **Phase 1** — API 연동 골격 + 토큰 관리 + 시세 수집·저장 + 룰 엔진 + 예시 룰 1개
-- [x] **Phase 2** — 룰 추가(가격제한폭·호가불균형·거래량) · 투자경고는 종목정보 API 연동으로 추후
-- [x] **Phase 3** — 관제 대시보드 화면 + WebSocket(STOMP) 실시간 알림
-- [x] **Phase 4** — Resilience4j(재시도·서킷브레이커) + 감사 로그(AOP, `@Audited`→`audit_log`) + 통합 테스트(Testcontainers PostgreSQL) + 거래캘린더 연동(공휴일·정규장 시간으로 스캔 게이트)
-- [x] **Phase 5** — Flyway 마이그레이션 + Docker(멀티스테이지) + Docker Compose(PostgreSQL) 패키징
+```bash
+# Docker 소켓이 없으면 PostgreSQL 통합 테스트는 성공으로 건너뛰지 않고 실패합니다.
+./gradlew clean check bootJar
+docker build -t marketguard:local .
+./scripts/compose-smoke.sh
+```
+
+CI는 Gradle wrapper 검증, 전체 테스트, 65% line coverage gate, CodeQL/dependency review, hardened image build/scan, Compose 스모크를 수행합니다. GitHub Actions와 Docker base image는 commit/digest로 고정했습니다.
+
+## 운영과 보안
+
+- 운영 실행, TLS reverse proxy, 백업/복구, 지표/알림: [operations.md](docs/operations.md)
+- 신뢰 경계와 보안 통제: [threat-model.md](docs/threat-model.md)
+- 설계와 계층 규칙: [architecture.md](docs/architecture.md)
+- 취약점 보고와 시크릿 지침: [SECURITY.md](SECURITY.md)
+- 초기 감사 결과와 해소 상태: [production-readiness.md](docs/review/production-readiness.md)
+
+## 제약 사항
+
+- Toss는 client당 유효 토큰 하나만 허용하므로 동일 client credential을 공유하는 앱 replica는 **1개만** 지원합니다.
+- 내장 STOMP broker와 API rate limiter는 단일 프로세스 범위입니다.
+- 알림 전송은 DB commit 이후 best-effort입니다. 연결이 끊긴 브라우저는 DB의 최근 anomaly API로 복구합니다.
+- anomaly/audit 장기 보존 정책은 운영 환경의 규제·비용 요구에 맞춰 별도로 정해야 합니다.
+- 공개 배포는 TLS reverse proxy와 네트워크 ACL 뒤에서만 수행해야 합니다.
