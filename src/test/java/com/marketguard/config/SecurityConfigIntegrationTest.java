@@ -2,6 +2,7 @@ package com.marketguard.config;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +45,13 @@ class SecurityConfigIntegrationTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get("/actuator/health/readiness"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsUnsafeRequestsWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/anomalies")
+                        .with(httpBasic("operator", "a-secure-password")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
