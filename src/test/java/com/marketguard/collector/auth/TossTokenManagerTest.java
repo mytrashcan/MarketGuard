@@ -1,9 +1,13 @@
 package com.marketguard.collector.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -16,27 +20,30 @@ import org.junit.jupiter.api.Test;
 
 class TossTokenManagerTest {
 
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC);
+
     @Test
     void cachesAValidToken() {
         TossTokenClient client = mock(TossTokenClient.class);
         when(client.issue()).thenReturn(new TokenResponse("token", "Bearer", 3600));
-        TossTokenManager manager = new TossTokenManager(client);
+        TossTokenManager manager = new TossTokenManager(client, CLOCK);
 
         assertThat(manager.getAccessToken()).isEqualTo("token");
         assertThat(manager.getAccessToken()).isEqualTo("token");
     }
 
     @Test
-    void documentsThatTooShortLifetimeCurrentlyCausesRepeatedIssuance() {
+    void rejectsLifetimeShorterThanTheSafetyMargin() {
         TossTokenClient client = mock(TossTokenClient.class);
         AtomicInteger calls = new AtomicInteger();
         when(client.issue()).thenAnswer(ignored ->
                 new TokenResponse("token-" + calls.incrementAndGet(), "Bearer", 10));
-        TossTokenManager manager = new TossTokenManager(client);
+        TossTokenManager manager = new TossTokenManager(client, CLOCK);
 
-        assertThat(manager.getAccessToken()).isEqualTo("token-1");
-        assertThat(manager.getAccessToken()).isEqualTo("token-2");
-        assertThat(calls).hasValue(2);
+        assertThatThrownBy(manager::getAccessToken)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("유효기간");
+        assertThat(calls).hasValue(1);
     }
 
     @Test
@@ -49,7 +56,7 @@ class TossTokenManagerTest {
             assertThat(releaseIssue.await(5, TimeUnit.SECONDS)).isTrue();
             return new TokenResponse("shared-token", "Bearer", 3600);
         });
-        TossTokenManager manager = new TossTokenManager(client);
+        TossTokenManager manager = new TossTokenManager(client, CLOCK);
 
         ExecutorService executor = Executors.newFixedThreadPool(8);
         try {

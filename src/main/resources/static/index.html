@@ -191,9 +191,15 @@
     </section>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"
+        integrity="sha384-svdnwiXBL+Js+yUneJSRFy24NgGiOfDM/vkQl/vCeVrcbYD6yW8EwPr1FnxTEZsR"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"
+        integrity="sha384-clKAk7WaYNQiu/pGVWisoFQcSK2VL7YweoI1gim9/HFbMsRvD2ZtLWNoZoL4df65"
+        crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"
+        integrity="sha384-JZigAjwiaZtkUbA44CWkPaT3iBb/mU5pO6QOANp+OqHd4q+1+7MG1kzp2OOP9ZfP"
+        crossorigin="anonymous"></script>
 <script>
     const NAMES = {
         "005930": "삼성전자", "000660": "SK하이닉스", "373220": "LG에너지솔루션",
@@ -223,6 +229,11 @@
     let lastBoard = [], selectedCode = null;
 
     function fmtKRW(v) { return v == null ? "–" : Number(v).toLocaleString("ko-KR"); }
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>'"]/g, char => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+        })[char]);
+    }
     function fmtVolume(v) {   // 거래량(주). 토스 API는 거래대금(원)을 제공하지 않아 거래량으로 표시
         if (!v || v <= 0) return "–";
         if (v >= 1e8) return (v / 1e8).toFixed(1) + "억";
@@ -392,9 +403,10 @@
     function anomalyRow(a, isNew) {
         const tr = document.createElement("tr");
         if (isNew) tr.className = "new";
-        tr.innerHTML = `<td>${fmtTime(a.detectedAt)}</td><td><code>${a.stockCode ?? "-"}</code></td>` +
-            `<td>${RULE_LABELS[a.ruleType] ?? a.ruleType}</td>` +
-            `<td><span class="sev ${a.severity}">${a.severity}</span></td><td>${a.message ?? ""}</td>`;
+        const severity = ["INFO", "WARNING", "CRITICAL"].includes(a.severity) ? a.severity : "INFO";
+        tr.innerHTML = `<td>${escapeHtml(fmtTime(a.detectedAt))}</td><td><code>${escapeHtml(a.stockCode ?? "-")}</code></td>` +
+            `<td>${escapeHtml(RULE_LABELS[a.ruleType] ?? a.ruleType)}</td>` +
+            `<td><span class="sev ${severity}">${severity}</span></td><td>${escapeHtml(a.message)}</td>`;
         return tr;
     }
     function addAnomaly(a, isNew) {
@@ -434,9 +446,9 @@
             const body = document.getElementById("auditRows");
             if (!list || list.length === 0) { body.innerHTML = '<tr><td colspan="5" class="empty">감사 로그가 없습니다. (토큰 발급 시 기록)</td></tr>'; return; }
             body.innerHTML = list.map(x =>
-                `<tr><td>${fmtTime(x.createdAt)}</td><td>${x.action}</td>` +
-                `<td><span class="sev ${x.outcome === "SUCCESS" ? "INFO" : "CRITICAL"}">${x.outcome}</span></td>` +
-                `<td class="num">${x.latencyMs}</td><td>${x.detail ?? ""}</td></tr>`).join("");
+                `<tr><td>${escapeHtml(fmtTime(x.createdAt))}</td><td>${escapeHtml(x.action)}</td>` +
+                `<td><span class="sev ${x.outcome === "SUCCESS" ? "INFO" : "CRITICAL"}">${escapeHtml(x.outcome)}</span></td>` +
+                `<td class="num">${Number(x.latencyMs) || 0}</td><td>${escapeHtml(x.detail)}</td></tr>`).join("");
             document.getElementById("auditUpdated").textContent = "· " + new Date().toLocaleTimeString("ko-KR");
         }).catch(() => {});
     }

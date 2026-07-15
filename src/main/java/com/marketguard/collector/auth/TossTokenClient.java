@@ -4,6 +4,8 @@ import com.marketguard.audit.Audited;
 import com.marketguard.config.TossApiProperties;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -21,12 +23,19 @@ public class TossTokenClient {
     private final RestClient authClient;
     private final CircuitBreaker circuitBreaker;
     private final Retry retry;
+    private final RateLimiter rateLimiter;
 
-    public TossTokenClient(TossApiProperties props, CircuitBreaker tossCircuitBreaker, Retry tossRetry) {
+    public TossTokenClient(
+            TossApiProperties props,
+            @Qualifier("tossAuthClient") RestClient authClient,
+            @Qualifier("tossAuthCircuitBreaker") CircuitBreaker tossCircuitBreaker,
+            @Qualifier("tossAuthRetry") Retry tossRetry,
+            @Qualifier("tossAuthRateLimiter") RateLimiter rateLimiter) {
         this.props = props;
-        this.authClient = RestClient.create();
+        this.authClient = authClient;
         this.circuitBreaker = tossCircuitBreaker;
         this.retry = tossRetry;
+        this.rateLimiter = rateLimiter;
     }
 
     @Audited("TOSS_TOKEN_ISSUE")
@@ -36,11 +45,12 @@ public class TossTokenClient {
         form.add("client_id", props.clientId());
         form.add("client_secret", props.clientSecret());
 
-        return circuitBreaker.executeSupplier(Retry.decorateSupplier(retry, () -> authClient.post()
+        return circuitBreaker.executeSupplier(Retry.decorateSupplier(retry,
+                RateLimiter.decorateSupplier(rateLimiter, () -> authClient.post()
                 .uri(props.authUrl())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
-                .body(TokenResponse.class)));
+                .body(TokenResponse.class))));
     }
 }

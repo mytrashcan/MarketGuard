@@ -1,5 +1,6 @@
 package com.marketguard.collector;
 
+import com.marketguard.detection.model.DecimalMath;
 import java.math.BigDecimal;
 
 /**
@@ -14,7 +15,7 @@ public record BoardItem(
         String code,
         BigDecimal price,
         BigDecimal previousClose,
-        Double changePercent,
+        BigDecimal changePercent,
         long volume,
         long bidVolume,
         long askVolume,
@@ -30,9 +31,9 @@ public record BoardItem(
         BigDecimal price = livePrice != null ? livePrice : lastClose;
         boolean closed = livePrice == null && price != null;   // 종가로 대체된 경우
 
-        Double changePercent = null;
-        if (price != null && prevClose != null && prevClose.signum() != 0) {
-            changePercent = price.subtract(prevClose).doubleValue() / prevClose.doubleValue() * 100.0;
+        BigDecimal changePercent = null;
+        if (price != null && price.signum() > 0 && prevClose != null && prevClose.signum() > 0) {
+            changePercent = DecimalMath.percentageChange(price, prevClose);
         }
         return new BoardItem(code, price, prevClose, changePercent, volume, bidVolume, askVolume, closed);
     }

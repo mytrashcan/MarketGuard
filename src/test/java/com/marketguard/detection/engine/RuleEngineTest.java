@@ -5,10 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import com.marketguard.detection.rule.DetectionRule;
-import com.marketguard.domain.marketdata.PriceSnapshot;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
 class RuleEngineTest {
 
     private final DetectionContext context = new DetectionContext(
-            new PriceSnapshot("005930", new BigDecimal("70000"), Instant.parse("2026-07-15T00:00:00Z")),
-            List.of());
+            new MarketPrice("005930", new BigDecimal("70000"), Instant.parse("2026-07-15T00:00:00Z")),
+            List.of(), Instant.parse("2026-07-15T00:00:01Z"));
 
     @Test
     void combinesAnomaliesFromAllMatchingRulesInRegistrationOrder() {
@@ -34,22 +34,31 @@ class RuleEngineTest {
     }
 
     @Test
-    void documentsThatOneRuleFailureCurrentlyStopsFollowingRules() {
+    void isolatesOneRuleFailureAndContinuesWithFollowingRules() {
         AtomicBoolean followingRuleCalled = new AtomicBoolean();
         DetectionRule broken = new TestRule(RuleType.PRICE_SPIKE, ignored -> {
             throw new IllegalStateException("broken rule");
         });
         DetectionRule following = new TestRule(RuleType.VOLUME_SURGE, ignored -> {
             followingRuleCalled.set(true);
-            return Optional.empty();
+            return Optional.of(new Anomaly("005930", RuleType.VOLUME_SURGE, Severity.WARNING,
+                    "healthy", Instant.parse("2026-07-15T00:00:01Z")));
         });
 
         RuleEngine engine = new RuleEngine(List.of(broken, following));
 
-        assertThatThrownBy(() -> engine.evaluate(context))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("broken rule");
-        assertThat(followingRuleCalled).isFalse();
+        assertThat(engine.evaluate(context)).singleElement()
+                .extracting(Anomaly::ruleType)
+                .isEqualTo(RuleType.VOLUME_SURGE);
+        assertThat(followingRuleCalled).isTrue();
+    }
+
+    @Test
+    void rejectsDuplicateRuleTypes() {
+        assertThatThrownBy(() -> new RuleEngine(List.of(
+                matchingRule(RuleType.PRICE_SPIKE), matchingRule(RuleType.PRICE_SPIKE))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unique");
     }
 
     private DetectionRule matchingRule(RuleType type) {

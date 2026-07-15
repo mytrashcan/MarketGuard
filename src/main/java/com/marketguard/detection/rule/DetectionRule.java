@@ -6,8 +6,7 @@ import com.marketguard.detection.model.RuleType;
 import java.util.Optional;
 
 /**
- * 이상거래 탐지 룰. 새 룰은 이 인터페이스만 구현해 빈으로 등록하면
- * RuleEngine이 자동으로 인식한다(개방-폐쇄 원칙: 기존 코드 수정 없이 확장).
+ * 이상거래 탐지 룰. 프레임워크 바깥 구성 계층이 구현체를 RuleEngine에 조립한다.
  */
 public interface DetectionRule {
 

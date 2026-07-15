@@ -1,7 +1,8 @@
 package com.marketguard.collector.scheduler;
 
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
-import java.time.Duration;
+import com.marketguard.config.MaintenanceProperties;
+import java.time.Clock;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,18 +17,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class SnapshotCleanupScheduler {
 
-    private static final Duration RETENTION = Duration.ofHours(1);
-
     private final PriceSnapshotRepository snapshotRepository;
+    private final MaintenanceProperties properties;
+    private final Clock clock;
 
-    public SnapshotCleanupScheduler(PriceSnapshotRepository snapshotRepository) {
+    public SnapshotCleanupScheduler(PriceSnapshotRepository snapshotRepository,
+                                    MaintenanceProperties properties,
+                                    Clock clock) {
         this.snapshotRepository = snapshotRepository;
+        this.properties = properties;
+        this.clock = clock;
     }
 
-    @Scheduled(fixedRate = 600_000)   // 10분마다
+    @Scheduled(fixedDelayString = "${maintenance.snapshot-cleanup-interval}")
     @Transactional
     public void prune() {
-        Instant cutoff = Instant.now().minus(RETENTION);
+        Instant cutoff = clock.instant().minus(properties.snapshotRetention());
         long deleted = snapshotRepository.deleteByCapturedAtBefore(cutoff);
         if (deleted > 0) {
             log.info("오래된 시세 스냅샷 {}건 정리", deleted);

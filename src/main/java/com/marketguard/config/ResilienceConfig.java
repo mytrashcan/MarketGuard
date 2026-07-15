@@ -2,8 +2,13 @@ package com.marketguard.config;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+import com.marketguard.collector.client.TossApiException;
+import java.io.IOException;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,27 +22,105 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ResilienceConfig {
 
-    public static final String TOSS = "tossApi";
+    public static final String TOSS_MARKET = "tossMarketData";
+    public static final String TOSS_AUTH = "tossAuth";
 
-    @Bean
-    CircuitBreaker tossCircuitBreaker() {
+    @Bean("tossMarketDataRateLimiter")
+    RateLimiter tossMarketDataRateLimiter() {
+        return rateLimiter("tossMarketData", 10);
+    }
+
+    @Bean("tossChartRateLimiter")
+    RateLimiter tossChartRateLimiter() {
+        return rateLimiter("tossMarketChart", 5);
+    }
+
+    @Bean("tossStockRateLimiter")
+    RateLimiter tossStockRateLimiter() {
+        return rateLimiter("tossStock", 5);
+    }
+
+    @Bean("tossMarketInfoRateLimiter")
+    RateLimiter tossMarketInfoRateLimiter() {
+        return rateLimiter("tossMarketInfo", 3);
+    }
+
+    @Bean("tossAuthRateLimiter")
+    RateLimiter tossAuthRateLimiter() {
+        return rateLimiter("tossAuth", 5);
+    }
+
+    private RateLimiter rateLimiter(String name, int permitsPerSecond) {
+        RateLimiterConfig config = RateLimiterConfig.custom()
+                .limitRefreshPeriod(Duration.ofSeconds(1))
+                .limitForPeriod(permitsPerSecond)
+                .timeoutDuration(Duration.ofSeconds(2))
+                .build();
+        return RateLimiter.of(name, config);
+    }
+
+    @Bean("tossMarketCircuitBreaker")
+    CircuitBreaker tossMarketCircuitBreaker() {
+        return circuitBreaker(TOSS_MARKET);
+    }
+
+    @Bean("tossAuthCircuitBreaker")
+    CircuitBreaker tossAuthCircuitBreaker() {
+        return circuitBreaker(TOSS_AUTH);
+    }
+
+    private CircuitBreaker circuitBreaker(String name) {
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
                 .failureRateThreshold(50)                       // 실패율 50% 초과면 OPEN
                 .slidingWindowSize(20)
                 .minimumNumberOfCalls(10)
                 .waitDurationInOpenState(Duration.ofSeconds(20)) // 20초 후 HALF_OPEN 시도
                 .permittedNumberOfCallsInHalfOpenState(3)
+                .recordException(ResilienceConfig::isRetryable)
                 .build();
-        return CircuitBreaker.of(TOSS, config);
+        return CircuitBreaker.of(name, config);
     }
 
-    @Bean
-    Retry tossRetry() {
-        RetryConfig config = RetryConfig.custom()
-                .maxAttempts(3)
-                .waitDuration(Duration.ofMillis(300))
-                .retryExceptions(Exception.class)
+    @Bean("tossMarketRetry")
+    public Retry tossMarketRetry(TossHttpProperties properties) {
+        return retry(TOSS_MARKET, properties);
+    }
+
+    @Bean("tossAuthRetry")
+    public Retry tossAuthRetry(TossHttpProperties properties) {
+        return retry(TOSS_AUTH, properties);
+    }
+
+    private Retry retry(String name, TossHttpProperties properties) {
+        IntervalFunction backoff = IntervalFunction.ofExponentialRandomBackoff(
+                properties.initialBackoff(), 2.0, properties.jitterFactor(), properties.maxBackoff());
+        RetryConfig config = RetryConfig.<Object>custom()
+                .maxAttempts(properties.maxAttempts())
+                .retryOnException(ResilienceConfig::isRetryable)
+                .intervalBiFunction((attempt, outcome) -> {
+                    long backoffMillis = backoff.apply(attempt);
+                    if (outcome.isLeft() && outcome.getLeft() instanceof TossApiException exception
+                            && exception.retryAfter() != null) {
+                        return Math.max(backoffMillis, exception.retryAfter().toMillis());
+                    }
+                    return backoffMillis;
+                })
                 .build();
-        return Retry.of(TOSS, config);
+        return Retry.of(name, config);
+    }
+
+    static boolean isRetryable(Throwable throwable) {
+        Throwable current = throwable;
+        for (int depth = 0; current != null && depth < 8; depth++, current = current.getCause()) {
+            if (current instanceof TossApiException exception) {
+                return exception.isRetryable();
+            }
+            if (current instanceof org.springframework.web.client.ResourceAccessException
+                    || current instanceof IOException
+                    || current instanceof java.util.concurrent.TimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

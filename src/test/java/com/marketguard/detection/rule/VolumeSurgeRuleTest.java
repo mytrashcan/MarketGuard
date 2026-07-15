@@ -2,12 +2,11 @@ package com.marketguard.detection.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.marketguard.config.VolumeSurgeProperties;
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.RuleType;
-import com.marketguard.domain.marketdata.PriceSnapshot;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -16,16 +15,19 @@ import org.junit.jupiter.api.Test;
 
 class VolumeSurgeRuleTest {
 
-    private final VolumeSurgeRule rule = new VolumeSurgeRule(new VolumeSurgeProperties(3.0, 20));
+    private static final Instant EVALUATED_AT = Instant.parse("2026-07-15T00:04:00Z");
+    private static final Instant FIRST_CANDLE_AT = Instant.parse("2026-07-15T00:00:00Z");
+    private final VolumeSurgeRule rule =
+            new VolumeSurgeRule(new BigDecimal("3.0"), 20);
 
     private Candle candle(int minuteOffset, long volume) {
         BigDecimal p = new BigDecimal("70000");
-        return new Candle(Instant.now().plusSeconds(minuteOffset * 60L), p, p, p, p, volume);
+        return new Candle(FIRST_CANDLE_AT.plusSeconds(minuteOffset * 60L), p, p, p, p, volume);
     }
 
     private DetectionContext ctx(List<Candle> candles) {
-        PriceSnapshot current = new PriceSnapshot("005930", new BigDecimal("70000"), Instant.now());
-        return new DetectionContext(current, List.of(), null, null, candles);
+        MarketPrice current = new MarketPrice("005930", new BigDecimal("70000"), EVALUATED_AT);
+        return new DetectionContext(current, List.of(), null, null, candles, EVALUATED_AT);
     }
 
     @Test

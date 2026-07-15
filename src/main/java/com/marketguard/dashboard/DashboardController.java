@@ -4,15 +4,15 @@ import com.marketguard.collector.BoardDataService;
 import com.marketguard.collector.BoardItem;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
-import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
-import com.marketguard.domain.audit.AuditLog;
 import com.marketguard.domain.audit.AuditLogRepository;
-import com.marketguard.domain.marketdata.PriceSnapshot;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 관제 대시보드용 조회 API.
  */
-@Slf4j
+@Validated
 @RestController
 @RequestMapping("/api")
 public class DashboardController {
@@ -56,32 +56,38 @@ public class DashboardController {
 
     /** 캔들(봉) 차트 데이터. interval=1m|1d, count 1~200 */
     @GetMapping("/stocks/{code}/candles")
-    public List<Candle> candles(@PathVariable String code,
-                                @RequestParam(defaultValue = "1m") String interval,
-                                @RequestParam(defaultValue = "60") int count) {
-        try {
-            return marketDataClient.fetchCandles(code, interval, count);
-        } catch (Exception e) {
-            log.warn("[{}] 캔들 조회 실패: {}", code, e.getMessage());
-            return List.of();
-        }
+    public List<Candle> candles(@PathVariable @Pattern(regexp = "\\d{6}") String code,
+                                @RequestParam(defaultValue = "1m")
+                                @Pattern(regexp = "1m|1d") String interval,
+                                @RequestParam(defaultValue = "60") @Min(1) @Max(200) int count) {
+        return marketDataClient.fetchCandles(code, interval, count);
     }
 
     /** 최근 탐지된 이상거래 목록 */
     @GetMapping("/anomalies")
-    public List<AnomalyRecord> recentAnomalies() {
-        return anomalyRepository.findByOrderByDetectedAtDesc(Limit.of(50));
+    public List<AnomalyView> recentAnomalies(
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
+        return anomalyRepository.findByOrderByDetectedAtDesc(Limit.of(limit)).stream()
+                .map(AnomalyView::from)
+                .toList();
     }
 
     /** 최근 감사 로그(토큰 발급 등 주요 작업 추적) */
     @GetMapping("/audit")
-    public List<AuditLog> recentAudit() {
-        return auditLogRepository.findByOrderByCreatedAtDesc(Limit.of(100));
+    public List<AuditLogView> recentAudit(
+            @RequestParam(defaultValue = "100") @Min(1) @Max(200) int limit) {
+        return auditLogRepository.findByOrderByCreatedAtDesc(Limit.of(limit)).stream()
+                .map(AuditLogView::from)
+                .toList();
     }
 
     /** 특정 종목의 최근 시세 스냅샷 */
     @GetMapping("/stocks/{code}/snapshots")
-    public List<PriceSnapshot> snapshots(@PathVariable String code) {
-        return snapshotRepository.findByStockCodeOrderByCapturedAtDesc(code, Limit.of(50));
+    public List<PriceSnapshotView> snapshots(
+            @PathVariable @Pattern(regexp = "\\d{6}") String code,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
+        return snapshotRepository.findByStockCodeOrderByCapturedAtDesc(code, Limit.of(limit)).stream()
+                .map(PriceSnapshotView::from)
+                .toList();
     }
 }

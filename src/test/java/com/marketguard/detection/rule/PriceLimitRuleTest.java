@@ -2,12 +2,11 @@ package com.marketguard.detection.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.marketguard.config.PriceLimitProperties;
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.PriceLimit;
 import com.marketguard.detection.model.Severity;
-import com.marketguard.domain.marketdata.PriceSnapshot;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -16,12 +15,13 @@ import org.junit.jupiter.api.Test;
 
 class PriceLimitRuleTest {
 
-    private final PriceLimitRule rule = new PriceLimitRule(new PriceLimitProperties(1.0));
+    private static final Instant EVALUATED_AT = Instant.parse("2026-07-15T00:00:00Z");
+    private final PriceLimitRule rule = new PriceLimitRule(new BigDecimal("1.0"));
 
     private DetectionContext ctx(String price, String upper, String lower) {
-        PriceSnapshot current = new PriceSnapshot("005930", new BigDecimal(price), Instant.now());
+        MarketPrice current = new MarketPrice("005930", new BigDecimal(price), EVALUATED_AT);
         return new DetectionContext(current, List.of(),
-                new PriceLimit(new BigDecimal(upper), new BigDecimal(lower)), null, List.of());
+                new PriceLimit(new BigDecimal(upper), new BigDecimal(lower)), null, List.of(), EVALUATED_AT);
     }
 
     @Test
@@ -47,7 +47,7 @@ class PriceLimitRuleTest {
     @Test
     @DisplayName("가격제한폭 데이터가 없으면 탐지하지 않는다")
     void noLimit() {
-        PriceSnapshot current = new PriceSnapshot("005930", new BigDecimal("9000"), Instant.now());
-        assertThat(rule.evaluate(new DetectionContext(current, List.of()))).isEmpty();
+        MarketPrice current = new MarketPrice("005930", new BigDecimal("9000"), EVALUATED_AT);
+        assertThat(rule.evaluate(new DetectionContext(current, List.of(), EVALUATED_AT))).isEmpty();
     }
 }

@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import com.marketguard.detection.model.Warning;
-import com.marketguard.domain.marketdata.PriceSnapshot;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,13 +18,14 @@ import org.junit.jupiter.api.Test;
 
 class InvestmentWarningRuleTest {
 
-    private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private static final Instant EVALUATED_AT = Instant.parse("2026-07-15T00:00:00Z");
+    private static final LocalDate TODAY = EVALUATED_AT.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
 
     private final InvestmentWarningRule rule = new InvestmentWarningRule();
 
     private DetectionContext ctx(List<Warning> warnings) {
-        PriceSnapshot current = new PriceSnapshot("900110", new BigDecimal("1000"), Instant.now());
-        return new DetectionContext(current, List.of(), null, null, List.of(), warnings);
+        MarketPrice current = new MarketPrice("900110", new BigDecimal("1000"), EVALUATED_AT);
+        return new DetectionContext(current, List.of(), null, null, List.of(), warnings, EVALUATED_AT);
     }
 
     @Test

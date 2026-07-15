@@ -3,6 +3,7 @@ package com.marketguard.collector;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.TossApiProperties;
 import com.marketguard.detection.model.Candle;
+import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -56,9 +57,9 @@ public class BoardDataService {
         Map<String, BigDecimal> live = new HashMap<>();
         try {
             marketDataClient.fetchPrices(board)
-                    .forEach(snapshot -> live.put(snapshot.getStockCode(), snapshot.getPrice()));
+                    .forEach(snapshot -> live.put(snapshot.stockCode(), snapshot.price()));
         } catch (Exception e) {
-            log.debug("실시간 시세 조회 실패 — 종가로 대체합니다: {}", e.getMessage());
+            log.debug("실시간 시세 조회 실패 — 종가로 대체합니다 ({})", e.getClass().getSimpleName());
         }
         return board.stream()
                 .map(code -> BoardItem.of(code, live.get(code), cache.get(code)))
@@ -66,7 +67,7 @@ public class BoardDataService {
                 .toList();
     }
 
-    @Scheduled(fixedRateString = "${board.detail-refresh-ms}")
+    @Scheduled(fixedDelayString = "${board.detail-refresh-ms}")
     public void refresh() {
         if (tossProps.clientId() == null || tossProps.clientId().isBlank()) {
             return;   // API 키 없으면 건너뜀
@@ -79,7 +80,7 @@ public class BoardDataService {
             try {
                 cache.put(symbol, fetchDetail(symbol));
             } catch (Exception e) {
-                log.debug("[{}] 보드 상세 갱신 실패: {}", symbol, e.getMessage());
+                log.debug("[{}] 보드 상세 갱신 실패: {}", symbol, e.getClass().getSimpleName());
             }
         }
     }
@@ -108,7 +109,7 @@ public class BoardDataService {
                 askVolume = orderbook.totalAskVolume();
             }
         } catch (Exception e) {
-            log.debug("[{}] 호가 조회 실패: {}", symbol, e.getMessage());
+            log.debug("[{}] 호가 조회 실패: {}", symbol, e.getClass().getSimpleName());
         }
         return new Detail(previousClose, lastClose, volume, bidVolume, askVolume);
     }
