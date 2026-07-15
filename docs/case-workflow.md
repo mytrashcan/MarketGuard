@@ -40,4 +40,4 @@ stateDiagram-v2
     CLOSED --> WATCHING
 ```
 
-`DISMISSED` and `CLOSED` require one of the enumerated closure reasons. Status writes require the current case version; conflicting updates return HTTP 409. The authenticated operator is recorded as reviewer. Status history and notes are append-only, and a bounded metadata entry is also written to the general audit log.
+`DISMISSED` and `CLOSED` require one of the enumerated closure reasons. Status writes require the current case version; conflicting updates return HTTP 409. The authenticated operator is recorded as reviewer; an explicitly unauthenticated loopback deployment records `local-operator`. Status history and notes are append-only, and a bounded metadata entry is also written to the general audit log.

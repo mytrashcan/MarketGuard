@@ -1,6 +1,6 @@
 # Operator API
 
-Production endpoints require HTTP Basic authentication. All write requests also require the CSRF header returned by `GET /api/csrf`. Responses never contain upstream bodies or internal exception details.
+Production endpoints require HTTP Basic authentication by default. A loopback-only personal deployment may explicitly set `MARKETGUARD_SECURITY_ENABLED=false`; in that mode the server uses `local-operator` as the review actor. All browser write requests still require the CSRF header returned by `GET /api/csrf`. Responses never contain upstream bodies or internal exception details.
 
 ## Case list
 

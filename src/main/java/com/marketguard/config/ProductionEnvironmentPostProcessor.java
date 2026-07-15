@@ -20,9 +20,11 @@ public final class ProductionEnvironmentPostProcessor implements EnvironmentPost
         requireResolved(environment, "spring.datasource.url", "SPRING_DATASOURCE_URL");
         requireResolved(environment, "spring.datasource.username", "SPRING_DATASOURCE_USERNAME");
         requireResolved(environment, "spring.datasource.password", "SPRING_DATASOURCE_PASSWORD");
-        requireResolved(environment, "marketguard.security.username", "MARKETGUARD_ADMIN_USERNAME");
-        requireResolved(environment, "marketguard.security.password", "MARKETGUARD_ADMIN_PASSWORD");
-        requireResolved(environment, "marketguard.security.allowed-origins", "MARKETGUARD_ALLOWED_ORIGINS");
+        if (environment.getProperty("marketguard.security.enabled", Boolean.class, true)) {
+            requireResolved(environment, "marketguard.security.username", "MARKETGUARD_ADMIN_USERNAME");
+            requireResolved(environment, "marketguard.security.password", "MARKETGUARD_ADMIN_PASSWORD");
+            requireResolved(environment, "marketguard.security.allowed-origins", "MARKETGUARD_ALLOWED_ORIGINS");
+        }
 
         if (environment.getProperty("collector.enabled", Boolean.class, false)) {
             requireResolved(environment, "toss.client-id", "TOSS_CLIENT_ID");

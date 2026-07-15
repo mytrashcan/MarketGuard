@@ -24,7 +24,7 @@ server:
 
 marketguard:
   security:
-    enabled: true
-    username: ${MARKETGUARD_ADMIN_USERNAME}
-    password: ${MARKETGUARD_ADMIN_PASSWORD}
-    allowed-origins: ${MARKETGUARD_ALLOWED_ORIGINS}
+    enabled: ${MARKETGUARD_SECURITY_ENABLED:true}
+    username: ${MARKETGUARD_ADMIN_USERNAME:}
+    password: ${MARKETGUARD_ADMIN_PASSWORD:}
+    allowed-origins: ${MARKETGUARD_ALLOWED_ORIGINS:}

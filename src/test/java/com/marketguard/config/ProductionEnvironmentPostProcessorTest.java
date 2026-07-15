@@ -37,6 +37,20 @@ class ProductionEnvironmentPostProcessorTest {
     }
 
     @Test
+    void acceptsProductionWithoutOperatorCredentialsWhenAuthenticationIsExplicitlyDisabled() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+        environment.withProperty("spring.datasource.url", "jdbc:postgresql://db/marketguard")
+                .withProperty("spring.datasource.username", "marketguard")
+                .withProperty("spring.datasource.password", "database-password")
+                .withProperty("marketguard.security.enabled", "false")
+                .withProperty("collector.enabled", "false");
+
+        assertThatCode(() -> postProcessor.postProcessEnvironment(environment, application()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void additionallyRequiresTossCredentialsForAnEnabledCollector() {
         MockEnvironment environment = completeEnvironment();
         environment.withProperty("collector.enabled", "true");
