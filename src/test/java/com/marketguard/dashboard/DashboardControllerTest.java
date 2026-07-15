@@ -2,25 +2,33 @@ package com.marketguard.dashboard;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.marketguard.collector.BoardDataService;
+import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossApiException;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.MarketGuardSecurityProperties;
 import com.marketguard.domain.anomaly.AnomalyRepository;
+import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.audit.AuditLogRepository;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
-import java.time.Duration;
+import com.marketguard.detection.model.RuleType;
+import com.marketguard.detection.model.Severity;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Limit;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -45,6 +53,9 @@ class DashboardControllerTest {
 
     @MockitoBean
     private AuditLogRepository auditLogRepository;
+
+    @MockitoBean
+    private StockReferenceService stockReferenceService;
 
     @MockitoBean
     private MarketGuardSecurityProperties securityProperties;
@@ -83,5 +94,20 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.code").value("MARKET_DATA_UNAVAILABLE"))
                 .andExpect(jsonPath("$.message").value("Market data is temporarily unavailable"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("request-1"))));
+    }
+
+    @Test
+    void includesTheOfficialStockNameInAnomalyResponses() throws Exception {
+        AnomalyRecord anomaly = new AnomalyRecord(
+                "005930", RuleType.PRICE_SPIKE, Severity.WARNING,
+                "가격 급변동", Instant.parse("2026-07-15T01:00:00Z"));
+        when(anomalyRepository.findByOrderByDetectedAtDesc(any(Limit.class)))
+                .thenReturn(List.of(anomaly));
+        when(stockReferenceService.nameOf("005930")).thenReturn("삼성전자");
+
+        mockMvc.perform(get("/api/anomalies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].stockCode").value("005930"))
+                .andExpect(jsonPath("$[0].stockName").value("삼성전자"));
     }
 }
