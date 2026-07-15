@@ -1,6 +1,7 @@
 package com.marketguard.collector.client;
 
 import com.marketguard.collector.MarketDay;
+import com.marketguard.collector.MarketRankingQuote;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.OrderbookSnapshot;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -38,6 +40,7 @@ public class TossMarketDataClient {
     private final RateLimiter chartRateLimiter;
     private final RateLimiter stockRateLimiter;
     private final RateLimiter marketInfoRateLimiter;
+    private final RateLimiter rankingRateLimiter;
 
     public TossMarketDataClient(
             @Qualifier("tossApiClient") RestClient tossApiClient,
@@ -46,7 +49,8 @@ public class TossMarketDataClient {
             @Qualifier("tossMarketDataRateLimiter") RateLimiter marketDataRateLimiter,
             @Qualifier("tossChartRateLimiter") RateLimiter chartRateLimiter,
             @Qualifier("tossStockRateLimiter") RateLimiter stockRateLimiter,
-            @Qualifier("tossMarketInfoRateLimiter") RateLimiter marketInfoRateLimiter) {
+            @Qualifier("tossMarketInfoRateLimiter") RateLimiter marketInfoRateLimiter,
+            @Qualifier("tossRankingRateLimiter") RateLimiter rankingRateLimiter) {
         this.tossApiClient = tossApiClient;
         this.circuitBreaker = tossCircuitBreaker;
         this.retry = tossRetry;
@@ -54,6 +58,7 @@ public class TossMarketDataClient {
         this.chartRateLimiter = chartRateLimiter;
         this.stockRateLimiter = stockRateLimiter;
         this.marketInfoRateLimiter = marketInfoRateLimiter;
+        this.rankingRateLimiter = rankingRateLimiter;
     }
 
     /** 재시도(inner) → 서킷브레이커(outer) 순으로 외부 호출을 보호한다. */
@@ -117,6 +122,15 @@ public class TossMarketDataClient {
 
     /** 단일 종목 캔들(OHLCV). GET /api/v1/candles?symbol=...&interval=1m&count=N */
     public List<Candle> fetchCandles(String symbol, String interval, int count) {
+        return fetchCandles(symbol, interval, count, null);
+    }
+
+    /** 수정주가 적용 여부를 명시해 캔들을 조회한다. */
+    public List<Candle> fetchCandles(String symbol, String interval, int count, boolean adjusted) {
+        return fetchCandles(symbol, interval, count, Boolean.valueOf(adjusted));
+    }
+
+    private List<Candle> fetchCandles(String symbol, String interval, int count, Boolean adjusted) {
         requireSymbol(symbol);
         if (!("1m".equals(interval) || "1d".equals(interval))) {
             throw new IllegalArgumentException("interval must be 1m or 1d");
@@ -125,15 +139,52 @@ public class TossMarketDataClient {
             throw new IllegalArgumentException("count must be between 1 and 200");
         }
         CandlesResponse response = call(chartRateLimiter, () -> tossApiClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/v1/candles")
-                        .queryParam("symbol", symbol)
-                        .queryParam("interval", interval)
-                        .queryParam("count", count)
-                        .build())
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path("/api/v1/candles")
+                            .queryParam("symbol", symbol)
+                            .queryParam("interval", interval)
+                            .queryParam("count", count);
+                    if (adjusted != null) {
+                        builder.queryParam("adjusted", adjusted);
+                    }
+                    return builder.build();
+                })
                 .retrieve()
                 .body(CandlesResponse.class));
         return response == null ? List.of() : response.toDomain();
+    }
+
+    /** 국내 시장 실시간 거래량 상위 100종목의 공식 전일 기준가와 거래량을 조회한다. */
+    public List<MarketRankingQuote> fetchKrRealtimeVolumeRanking() {
+        RankingResponse response = call(rankingRateLimiter, () -> tossApiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/rankings")
+                        .queryParam("type", "MARKET_TRADING_VOLUME")
+                        .queryParam("marketCountry", "KR")
+                        .queryParam("duration", "realtime")
+                        .queryParam("count", 100)
+                        .build())
+                .retrieve()
+                .body(RankingResponse.class));
+        return response == null ? List.of() : response.toDomain();
+    }
+
+    /** 종목 기본 정보에서 공식 한글 종목명을 배치 조회한다. */
+    public Map<String, String> fetchStockNames(List<String> symbols) {
+        validateSymbols(symbols);
+        if (symbols.isEmpty()) {
+            return Map.of();
+        }
+        String symbolsParam = String.join(",", symbols);
+        StockInfoResponse response = call(stockRateLimiter, () -> tossApiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/stocks")
+                        .queryParam("symbols", symbolsParam)
+                        .build())
+                .retrieve()
+                .body(StockInfoResponse.class));
+        return response == null ? Map.of() : response.toNames();
     }
 
     /** 단일 종목의 거래소 지정 경고/주의 목록. GET /api/v1/stocks/{symbol}/warnings */
@@ -189,6 +240,15 @@ public class TossMarketDataClient {
     private static void requireSymbol(String symbol) {
         if (!isValidSymbol(symbol)) {
             throw new IllegalArgumentException("symbol must be a six-digit KRX symbol");
+        }
+    }
+
+    private static void validateSymbols(List<String> symbols) {
+        if (symbols == null) {
+            throw new IllegalArgumentException("symbols must not be null");
+        }
+        if (symbols.size() > 200 || symbols.stream().anyMatch(symbol -> !isValidSymbol(symbol))) {
+            throw new IllegalArgumentException("symbols must contain up to 200 six-digit KRX symbols");
         }
     }
 

@@ -9,6 +9,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.marketguard.config.ResilienceConfig;
 import com.marketguard.config.RestClientConfig;
 import com.marketguard.config.TossHttpProperties;
+import com.marketguard.collector.MarketRankingQuote;
+import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.MarketPrice;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
@@ -16,6 +18,7 @@ import io.github.resilience4j.ratelimiter.RateLimiter;
 import java.time.Instant;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -64,6 +67,76 @@ class TossMarketDataClientCharacterizationTest {
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         assertThat(client.fetchPrices(List.of("005930"))).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void requestsUnadjustedDailyCandlesWhenExplicitlyRequired() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL
+                        + "/api/v1/candles?symbol=005930&interval=1d&count=2&adjusted=false"))
+                .andRespond(withSuccess("""
+                        {"result":{"candles":[{
+                          "timestamp":"2026-07-15T09:00:00+09:00",
+                          "openPrice":"70000","highPrice":"73000","lowPrice":"69000",
+                          "closePrice":"72000","volume":"123456"
+                        }]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<Candle> result = client.fetchCandles("005930", "1d", 2, false);
+
+        assertThat(result).singleElement().satisfies(candle -> {
+            assertThat(candle.close()).isEqualByComparingTo("72000");
+            assertThat(candle.volume()).isEqualTo(123456L);
+        });
+        server.verify();
+    }
+
+    @Test
+    void mapsOfficialRankingBasePriceAndTradingVolume() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL + "/api/v1/rankings?type=MARKET_TRADING_VOLUME"
+                        + "&marketCountry=KR&duration=realtime&count=100"))
+                .andRespond(withSuccess("""
+                        {"result":{"rankings":[{
+                          "rank":1,"symbol":"005930","currency":"KRW",
+                          "price":{"lastPrice":"72000","basePrice":"70000","changeRate":"0.0286"},
+                          "tradingVolume":"123456","tradingAmount":"8888888"
+                        }]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<MarketRankingQuote> result = client.fetchKrRealtimeVolumeRanking();
+
+        assertThat(result).singleElement().satisfies(quote -> {
+            assertThat(quote.stockCode()).isEqualTo("005930");
+            assertThat(quote.lastPrice()).isEqualByComparingTo("72000");
+            assertThat(quote.basePrice()).isEqualByComparingTo("70000");
+            assertThat(quote.tradingVolume()).isEqualTo(123456L);
+        });
+        server.verify();
+    }
+
+    @Test
+    void mapsOfficialKoreanStockNames() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL + "/api/v1/stocks?symbols=005930,000660"))
+                .andRespond(withSuccess("""
+                        {"result":[
+                          {"symbol":"005930","name":"삼성전자"},
+                          {"symbol":"000660","name":"SK하이닉스"}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<String, String> result = client.fetchStockNames(List.of("005930", "000660"));
+
+        assertThat(result).containsEntry("005930", "삼성전자")
+                .containsEntry("000660", "SK하이닉스");
         server.verify();
     }
 
@@ -122,6 +195,7 @@ class TossMarketDataClientCharacterizationTest {
                 builder.build(), CircuitBreaker.ofDefaults("test"),
                 new ResilienceConfig().tossMarketRetry(HTTP_PROPERTIES),
                 RateLimiter.ofDefaults("market"), RateLimiter.ofDefaults("chart"),
-                RateLimiter.ofDefaults("stock"), RateLimiter.ofDefaults("calendar"));
+                RateLimiter.ofDefaults("stock"), RateLimiter.ofDefaults("calendar"),
+                RateLimiter.ofDefaults("ranking"));
     }
 }

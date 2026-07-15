@@ -1,5 +1,6 @@
 package com.marketguard.alert;
 
+import com.marketguard.collector.StockReferenceService;
 import com.marketguard.detection.model.Anomaly;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -14,13 +15,17 @@ public class WebSocketAnomalyNotifier implements AnomalyNotifier {
     public static final String TOPIC = "/topic/anomalies";
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final StockReferenceService stockReferenceService;
 
-    public WebSocketAnomalyNotifier(SimpMessagingTemplate messagingTemplate) {
+    public WebSocketAnomalyNotifier(
+            SimpMessagingTemplate messagingTemplate, StockReferenceService stockReferenceService) {
         this.messagingTemplate = messagingTemplate;
+        this.stockReferenceService = stockReferenceService;
     }
 
     @Override
     public void publish(Anomaly anomaly) {
-        messagingTemplate.convertAndSend(TOPIC, anomaly);
+        messagingTemplate.convertAndSend(
+                TOPIC, AnomalyNotification.from(anomaly, stockReferenceService.nameOf(anomaly.stockCode())));
     }
 }

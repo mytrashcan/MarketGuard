@@ -2,6 +2,7 @@ package com.marketguard.dashboard;
 
 import com.marketguard.collector.BoardDataService;
 import com.marketguard.collector.BoardItem;
+import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.domain.anomaly.AnomalyRepository;
@@ -32,21 +33,24 @@ public class DashboardController {
     private final TossMarketDataClient marketDataClient;
     private final BoardDataService boardDataService;
     private final AuditLogRepository auditLogRepository;
+    private final StockReferenceService stockReferenceService;
 
     public DashboardController(AnomalyRepository anomalyRepository,
                               PriceSnapshotRepository snapshotRepository,
                               TossMarketDataClient marketDataClient,
                               BoardDataService boardDataService,
-                              AuditLogRepository auditLogRepository) {
+                              AuditLogRepository auditLogRepository,
+                              StockReferenceService stockReferenceService) {
         this.anomalyRepository = anomalyRepository;
         this.snapshotRepository = snapshotRepository;
         this.marketDataClient = marketDataClient;
         this.boardDataService = boardDataService;
         this.auditLogRepository = auditLogRepository;
+        this.stockReferenceService = stockReferenceService;
     }
 
     /**
-     * 시세 보드 카드(종목 블록) 목록 — 현재가(장 마감 시 종가) + 전일 종가 대비 등락률 + 거래량 + 미니 캔들.
+     * 시세 보드 카드(종목 블록) 목록 — 현재가(장 마감 시 종가) + 전일 기준가 대비 등락률 + 거래량 + 호가 잔량.
      * API 키만 있으면 컬렉터 여부와 무관하게 동작한다.
      */
     @GetMapping("/prices/live")
@@ -68,7 +72,7 @@ public class DashboardController {
     public List<AnomalyView> recentAnomalies(
             @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
         return anomalyRepository.findByOrderByDetectedAtDesc(Limit.of(limit)).stream()
-                .map(AnomalyView::from)
+                .map(record -> AnomalyView.from(record, stockReferenceService.nameOf(record.getStockCode())))
                 .toList();
     }
 

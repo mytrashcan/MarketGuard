@@ -13,6 +13,7 @@ class DashboardStaticSecurityTest {
         String html = Files.readString(Path.of("src/main/resources/static/index.html"));
 
         assertThat(html).contains("escapeHtml(a.message)", "escapeHtml(x.detail)", "escapeHtml(x.action)");
+        assertThat(html).contains("escapeHtml(a.stockName)", "매수 ${bp}%", "매도 ${sp}%");
         assertThat(html).doesNotContain("${a.message}", "${x.detail}", "${x.action}");
         assertThat(count(html, "integrity=\"sha384-")).isEqualTo(3);
         assertThat(count(html, "crossorigin=\"anonymous\"")).isEqualTo(3);
