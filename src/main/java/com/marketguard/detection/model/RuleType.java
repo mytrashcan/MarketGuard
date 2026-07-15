@@ -8,7 +8,8 @@ public enum RuleType {
     PRICE_SPIKE("단기 가격 급변동"),
     VOLUME_SURGE("거래량 급증"),
     ORDERBOOK_IMBALANCE("호가 불균형"),
-    INVESTMENT_WARNING("투자경고 종목");
+    INVESTMENT_WARNING("투자경고 종목"),
+    PRICE_VOLUME_SURGE("가격·거래량 동시 급증");
 
     private final String description;
 

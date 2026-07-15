@@ -11,7 +11,8 @@ public record Anomaly(
         RuleType ruleType,
         Severity severity,
         String message,
-        Instant detectedAt
+        Instant detectedAt,
+        AnomalyEvidence evidence
 ) {
     public Anomaly {
         if (stockCode == null || !stockCode.matches("\\d{6}")) {
@@ -26,10 +27,21 @@ public record Anomaly(
             throw new IllegalArgumentException("message must not exceed 500 characters");
         }
         Objects.requireNonNull(detectedAt, "detectedAt must not be null");
+        evidence = evidence == null ? AnomalyEvidence.legacy(message, detectedAt) : evidence;
+    }
+
+    public Anomaly(String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt) {
+        this(stockCode, ruleType, severity, message, detectedAt, null);
     }
 
     public static Anomaly of(
             String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt) {
         return new Anomaly(stockCode, ruleType, severity, message, detectedAt);
+    }
+
+    public static Anomaly explained(
+            String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt,
+            AnomalyEvidence evidence) {
+        return new Anomaly(stockCode, ruleType, severity, message, detectedAt, evidence);
     }
 }

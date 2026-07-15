@@ -1,11 +1,13 @@
 package com.marketguard.config;
 
 import com.marketguard.detection.engine.RuleEngine;
+import com.marketguard.detection.engine.RuleEvaluationObserver;
 import com.marketguard.detection.rule.DetectionRule;
 import com.marketguard.detection.rule.InvestmentWarningRule;
 import com.marketguard.detection.rule.OrderbookImbalanceRule;
 import com.marketguard.detection.rule.PriceLimitRule;
 import com.marketguard.detection.rule.PriceSpikeRule;
+import com.marketguard.detection.rule.PriceVolumeSurgeRule;
 import com.marketguard.detection.rule.VolumeSurgeRule;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -41,7 +43,14 @@ public class DetectionConfig {
     }
 
     @Bean
-    RuleEngine ruleEngine(List<DetectionRule> rules) {
-        return new RuleEngine(rules);
+    DetectionRule priceVolumeSurgeRule(
+            PriceSpikeProperties price, VolumeSurgeProperties volume) {
+        return new PriceVolumeSurgeRule(price.thresholdPercent(), price.lookback(),
+                volume.multiplier(), volume.lookback());
+    }
+
+    @Bean
+    RuleEngine ruleEngine(List<DetectionRule> rules, RuleEvaluationObserver observer) {
+        return new RuleEngine(rules, observer);
     }
 }

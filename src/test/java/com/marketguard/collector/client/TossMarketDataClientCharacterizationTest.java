@@ -102,7 +102,7 @@ class TossMarketDataClientCharacterizationTest {
         server.expect(requestTo(BASE_URL + "/api/v1/rankings?type=MARKET_TRADING_VOLUME"
                         + "&marketCountry=KR&duration=realtime&count=100"))
                 .andRespond(withSuccess("""
-                        {"result":{"rankings":[{
+                        {"result":{"rankedAt":"2026-07-15T10:00:00+09:00","rankings":[{
                           "rank":1,"symbol":"005930","currency":"KRW",
                           "price":{"lastPrice":"72000","basePrice":"70000","changeRate":"0.0286"},
                           "tradingVolume":"123456","tradingAmount":"8888888"
@@ -115,7 +115,9 @@ class TossMarketDataClientCharacterizationTest {
             assertThat(quote.stockCode()).isEqualTo("005930");
             assertThat(quote.lastPrice()).isEqualByComparingTo("72000");
             assertThat(quote.basePrice()).isEqualByComparingTo("70000");
+            assertThat(quote.changeRate()).isEqualByComparingTo("0.0286");
             assertThat(quote.tradingVolume()).isEqualTo(123456L);
+            assertThat(quote.rankedAt()).isEqualTo(Instant.parse("2026-07-15T01:00:00Z"));
         });
         server.verify();
     }
