@@ -24,9 +24,10 @@ test "${unauthenticated_status}" = "401"
 curl --fail --silent --show-error \
   --user "${MARKETGUARD_ADMIN_USERNAME}:${MARKETGUARD_ADMIN_PASSWORD}" \
   "${base_url}/" >/dev/null
-curl --fail --silent --show-error \
+prometheus_metrics="$(curl --fail --silent --show-error \
   --user "${MARKETGUARD_ADMIN_USERNAME}:${MARKETGUARD_ADMIN_PASSWORD}" \
-  "${base_url}/actuator/prometheus" | grep --quiet '^jvm_memory_used_bytes'
+  "${base_url}/actuator/prometheus")"
+grep --quiet '^jvm_memory_used_bytes' <<<"${prometheus_metrics}"
 
 untrusted_origin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --user "${MARKETGUARD_ADMIN_USERNAME}:${MARKETGUARD_ADMIN_PASSWORD}" \
