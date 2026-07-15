@@ -1,6 +1,7 @@
 package com.marketguard.collector;
 
 import com.marketguard.config.TossApiProperties;
+import com.marketguard.config.ScanProperties;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
@@ -36,8 +36,8 @@ public class SymbolUniverse {
 
     public SymbolUniverse(TossApiProperties props,
                           ResourceLoader resourceLoader,
-                          @Value("${scan.symbols-file:}") String symbolsFile) {
-        this.symbols = load(resourceLoader, symbolsFile, props.watchList());
+                          ScanProperties scanProperties) {
+        this.symbols = load(resourceLoader, scanProperties.symbolsFile(), props.watchList());
         log.info("이상거래 스캔 유니버스 {}종목 로드됨", symbols.size());
     }
 
@@ -52,7 +52,13 @@ public class SymbolUniverse {
             if (Files.exists(path)) {
                 try {
                     // 인코딩 무관(CP949/UTF-8) — 코드는 ASCII 숫자라 ISO-8859-1로 읽어도 보존됨
-                    List<String> codes = parse(Files.readAllLines(path, StandardCharsets.ISO_8859_1).stream());
+                    if (!Files.isRegularFile(path) || Files.size(path) > 10 * 1024 * 1024) {
+                        throw new IOException("symbols file must be a regular file no larger than 10 MiB");
+                    }
+                    List<String> codes;
+                    try (Stream<String> lines = Files.lines(path, StandardCharsets.ISO_8859_1)) {
+                        codes = parse(lines);
+                    }
                     if (!codes.isEmpty()) {
                         log.info("외부 종목 파일 사용: {} ({}종목)", path, codes.size());
                         return codes;

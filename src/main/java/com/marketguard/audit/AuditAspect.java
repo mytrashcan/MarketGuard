@@ -36,7 +36,7 @@ public class AuditAspect {
             try {
                 auditService.record(audited.value(), detail, outcome, latencyMs);
             } catch (Exception e) {
-                log.warn("감사 로그 기록 실패: {}", e.getMessage());
+                log.warn("감사 로그 기록 실패: {}", e.getClass().getSimpleName());
             }
             log.info("[AUDIT] {} {} ({}ms)", audited.value(), outcome, latencyMs);
         }

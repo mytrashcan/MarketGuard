@@ -1,6 +1,7 @@
 package com.marketguard.collector.auth;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,12 +19,14 @@ public class TossTokenManager {
     private static final Duration SAFETY_MARGIN = Duration.ofSeconds(30);
 
     private final TossTokenClient tokenClient;
+    private final Clock clock;
 
     private volatile String cachedToken;
     private volatile Instant expiresAt = Instant.EPOCH;
 
-    public TossTokenManager(TossTokenClient tokenClient) {
+    public TossTokenManager(TossTokenClient tokenClient, Clock clock) {
         this.tokenClient = tokenClient;
+        this.clock = clock;
     }
 
     public String getAccessToken() {
@@ -40,18 +43,29 @@ public class TossTokenManager {
     }
 
     private boolean isValid() {
-        return cachedToken != null && Instant.now().isBefore(expiresAt);
+        return cachedToken != null && clock.instant().isBefore(expiresAt);
     }
 
     private void refresh() {
         TokenResponse response = tokenClient.issue();
-        if (response == null || response.accessToken() == null) {
+        if (response == null || response.accessToken() == null || response.accessToken().isBlank()) {
             throw new IllegalStateException("토스 토큰 응답이 비어 있습니다.");
         }
+        if (response.tokenType() == null || !"Bearer".equalsIgnoreCase(response.tokenType())) {
+            throw new IllegalStateException("토스 토큰 타입이 Bearer가 아닙니다.");
+        }
+        if (response.expiresIn() <= SAFETY_MARGIN.toSeconds()) {
+            throw new IllegalStateException("토스 토큰 유효기간이 안전 여유시간보다 짧습니다.");
+        }
+        Instant now = clock.instant();
+        Instant refreshedExpiresAt;
+        try {
+            refreshedExpiresAt = now.plusSeconds(response.expiresIn()).minus(SAFETY_MARGIN);
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("토스 토큰 유효기간이 올바르지 않습니다.", exception);
+        }
         this.cachedToken = response.accessToken();
-        this.expiresAt = Instant.now()
-                .plusSeconds(response.expiresIn())
-                .minus(SAFETY_MARGIN);
+        this.expiresAt = refreshedExpiresAt;
         log.info("토스 액세스 토큰 갱신 완료 (만료 예정: {})", expiresAt);
     }
 }

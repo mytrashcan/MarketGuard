@@ -10,13 +10,11 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.springframework.stereotype.Component;
 
 /**
  * 거래소 지정종목 탐지: 투자경고/투자위험/단기과열/정리매매 등 현재 유효한 지정이 있으면 알린다.
  * VI(변동성완화장치)·신주인수권 등 단기·비지정성 항목은 노이즈라 제외한다.
  */
-@Component
 public class InvestmentWarningRule implements DetectionRule {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -44,7 +42,7 @@ public class InvestmentWarningRule implements DetectionRule {
         if (warnings == null || warnings.isEmpty()) {
             return Optional.empty();
         }
-        LocalDate today = LocalDate.now(KST);
+        LocalDate today = context.evaluationTime().atZone(KST).toLocalDate();
 
         Warning top = null;
         Severity topSeverity = null;
@@ -65,7 +63,8 @@ public class InvestmentWarningRule implements DetectionRule {
         String period = top.startDate() + " ~ " + (top.endDate() == null ? "진행중" : top.endDate().toString());
         String message = "거래소 지정종목: %s (%s)".formatted(label, period);
         return Optional.of(Anomaly.of(
-                context.current().getStockCode(), RuleType.INVESTMENT_WARNING, topSeverity, message));
+                context.current().stockCode(), RuleType.INVESTMENT_WARNING, topSeverity, message,
+                context.evaluationTime()));
     }
 
     private boolean isActive(Warning warning, LocalDate today) {

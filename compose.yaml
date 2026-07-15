@@ -1,34 +1,58 @@
-# MarketGuard 로컬 패키징: PostgreSQL + 앱(prod 프로파일, Flyway 마이그레이션 적용)
-# 실행 전 토스 키를 환경변수(또는 .env)로 준비:
-#   $env:TOSS_CLIENT_ID="..."; $env:TOSS_CLIENT_SECRET="..."; docker compose up --build
+name: marketguard
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     environment:
-      POSTGRES_DB: marketguard
-      POSTGRES_USER: marketguard
-      POSTGRES_PASSWORD: marketguard
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-marketguard}
+      POSTGRES_USER: ${POSTGRES_USER:-marketguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U marketguard"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketguard
-      SPRING_DATASOURCE_USERNAME: marketguard
-      SPRING_DATASOURCE_PASSWORD: marketguard
-      COLLECTOR_ENABLED: "true"
-      # 시크릿은 호스트 환경변수/.env 에서 주입(미설정 시 기동 중단)
-      TOSS_CLIENT_ID: ${TOSS_CLIENT_ID:?TOSS_CLIENT_ID 를 설정하세요}
-      TOSS_CLIENT_SECRET: ${TOSS_CLIENT_SECRET:?TOSS_CLIENT_SECRET 를 설정하세요}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-marketguard}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-marketguard}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      MARKETGUARD_ADMIN_USERNAME: ${MARKETGUARD_ADMIN_USERNAME:?Set MARKETGUARD_ADMIN_USERNAME}
+      MARKETGUARD_ADMIN_PASSWORD: ${MARKETGUARD_ADMIN_PASSWORD:?Set MARKETGUARD_ADMIN_PASSWORD}
+      MARKETGUARD_ALLOWED_ORIGINS: ${MARKETGUARD_ALLOWED_ORIGINS:-http://localhost:5050}
+      COLLECTOR_ENABLED: ${COLLECTOR_ENABLED:-false}
+      TOSS_CLIENT_ID: ${TOSS_CLIENT_ID:-}
+      TOSS_CLIENT_SECRET: ${TOSS_CLIENT_SECRET:-}
     ports:
-      - "5050:5050"
+      - "127.0.0.1:${HOST_PORT:-5050}:5050"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:5050/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    mem_limit: 768m
+    cpus: 1.0
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

@@ -1,7 +1,7 @@
 package com.marketguard.collector;
 
 import com.marketguard.collector.client.TossMarketDataClient;
-import java.time.DayOfWeek;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * KRX(국내 증시) 정규장 운영 여부 판단.
  * 토스 거래캘린더(공휴일·정규장 시간)를 일자별로 1회 조회·캐싱해서 사용하고,
- * 조회 실패 시 평일 09:00~15:30(KST) 기본값으로 폴백한다.
+ * 조회 실패 시 스테일 데이터 오탐을 막기 위해 장 마감으로 처리한다.
  */
 @Slf4j
 @Component
@@ -23,14 +23,16 @@ public class MarketSession {
     private static final LocalTime DEFAULT_CLOSE = LocalTime.of(15, 30);
 
     private final TossMarketDataClient marketDataClient;
+    private final Clock clock;
     private volatile MarketDay cachedToday;   // 오늘 캘린더 캐시
 
-    public MarketSession(TossMarketDataClient marketDataClient) {
+    public MarketSession(TossMarketDataClient marketDataClient, Clock clock) {
         this.marketDataClient = marketDataClient;
+        this.clock = clock;
     }
 
     public boolean isKrxOpen() {
-        ZonedDateTime now = ZonedDateTime.now(KST);
+        ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(KST);
         LocalDate today = now.toLocalDate();
         LocalTime time = now.toLocalTime();
 
@@ -41,15 +43,11 @@ public class MarketSession {
             }
             LocalTime open = calendar.open() != null ? calendar.open() : DEFAULT_OPEN;
             LocalTime close = calendar.close() != null ? calendar.close() : DEFAULT_CLOSE;
-            return !time.isBefore(open) && !time.isAfter(close);
+            return !time.isBefore(open) && time.isBefore(close);
         }
 
-        // 폴백: 캘린더를 모를 때는 평일 + 기본 시간
-        DayOfWeek day = now.getDayOfWeek();
-        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            return false;
-        }
-        return !time.isBefore(DEFAULT_OPEN) && !time.isAfter(DEFAULT_CLOSE);
+        // 공식 캘린더를 확인하지 못하면 스테일 데이터 오탐을 피하기 위해 닫힌 것으로 본다.
+        return false;
     }
 
     private MarketDay calendarFor(LocalDate today) {
@@ -64,7 +62,7 @@ public class MarketSession {
                 return fetched;
             }
         } catch (Exception e) {
-            log.debug("거래캘린더 조회 실패 — 기본 운영시간으로 폴백: {}", e.getMessage());
+            log.warn("거래캘린더 조회 실패 — 안전하게 장 마감으로 처리 ({})", e.getClass().getSimpleName());
         }
         return null;
     }

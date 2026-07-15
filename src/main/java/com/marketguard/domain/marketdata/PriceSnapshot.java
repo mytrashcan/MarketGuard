@@ -1,5 +1,6 @@
 package com.marketguard.domain.marketdata;
 
+import com.marketguard.detection.model.MarketPrice;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -39,8 +40,20 @@ public class PriceSnapshot {
     private Instant capturedAt;
 
     public PriceSnapshot(String stockCode, BigDecimal price, Instant capturedAt) {
-        this.stockCode = stockCode;
-        this.price = price;
-        this.capturedAt = capturedAt;
+        this(new MarketPrice(stockCode, price, capturedAt));
+    }
+
+    private PriceSnapshot(MarketPrice marketPrice) {
+        this.stockCode = marketPrice.stockCode();
+        this.price = marketPrice.price();
+        this.capturedAt = marketPrice.capturedAt();
+    }
+
+    public static PriceSnapshot from(MarketPrice marketPrice) {
+        return new PriceSnapshot(marketPrice);
+    }
+
+    public MarketPrice toDomain() {
+        return new MarketPrice(stockCode, price, capturedAt);
     }
 }

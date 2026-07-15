@@ -27,7 +27,7 @@ public class PriceStreamScheduler {
         this.messagingTemplate = messagingTemplate;
     }
 
-    @Scheduled(fixedRateString = "${board.push-interval-ms}")
+    @Scheduled(fixedDelayString = "${board.push-interval-ms}")
     public void pushBoardPrices() {
         try {
             List<BoardItem> items = boardDataService.currentBoard();
@@ -35,7 +35,7 @@ public class PriceStreamScheduler {
                 messagingTemplate.convertAndSend(TOPIC, items);
             }
         } catch (Exception e) {
-            log.debug("시세 보드 푸시 실패: {}", e.getMessage());
+            log.warn("시세 보드 푸시 실패: {}", e.getClass().getSimpleName());
         }
     }
 }

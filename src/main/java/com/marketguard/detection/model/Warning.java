@@ -7,4 +7,12 @@ import java.time.LocalDate;
  * endDate가 null이면 진행 중.
  */
 public record Warning(String type, LocalDate startDate, LocalDate endDate) {
+    public Warning {
+        if (type == null || type.isBlank()) {
+            throw new IllegalArgumentException("type must not be blank");
+        }
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate must not be before startDate");
+        }
+    }
 }
