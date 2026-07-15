@@ -92,7 +92,7 @@ docker compose up --build --wait
 
 Compose는 다음을 강제합니다.
 
-- DB/운영자 비밀번호에 기본값 없음
+- DB 비밀번호에는 기본값이 없고, 인증을 켠 경우 운영자 비밀번호 누락 시 기동 실패
 - PostgreSQL 호스트 포트 미공개 및 named volume 사용
 - 앱 포트는 호스트 loopback에만 공개
 - non-root 앱, read-only root filesystem, capability 제거
@@ -106,7 +106,10 @@ Compose는 다음을 강제합니다.
 
 ## API와 운영 엔드포인트
 
-운영 프로파일에서는 probes를 제외한 모든 경로가 인증 대상입니다.
+운영 프로파일은 기본적으로 probes를 제외한 모든 경로에 인증을 요구합니다. 호스트 loopback에서만 사용하는
+개인용 배포는 `.env`의 `MARKETGUARD_SECURITY_ENABLED=false`로 로그인 화면을 끌 수 있습니다. 이 값을 끈
+상태로 포트를 외부에 공개하거나 인증 없는 reverse proxy에 연결하면 안 됩니다.
+아래 익명 접근 표는 기본값인 인증 활성화 모드를 기준으로 합니다.
 
 | 경로 | 설명 | 익명 접근 |
 |---|---|---|

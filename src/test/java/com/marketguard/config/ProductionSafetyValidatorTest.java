@@ -25,13 +25,12 @@ class ProductionSafetyValidatorTest {
     }
 
     @Test
-    void productionFailsFastWhenAuthenticationIsDisabled() {
+    void productionAllowsExplicitlyDisabledAuthentication() {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("prod");
 
-        assertThatThrownBy(validator(environment, disabledSecurity(), disabledCollector(), VALID_TOSS)::validate)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("must be enabled");
+        assertThatCode(validator(environment, disabledSecurity(), disabledCollector(), VALID_TOSS)::validate)
+                .doesNotThrowAnyException();
     }
 
     @Test

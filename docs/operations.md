@@ -19,11 +19,13 @@ docker compose ps
 
 The app binds the host port to `127.0.0.1`; publish it through an authenticated TLS reverse proxy. Set `MARKETGUARD_ALLOWED_ORIGINS` to the exact public HTTPS origin.
 
+For a single-user machine that remains bound to loopback, `MARKETGUARD_SECURITY_ENABLED=false` disables the HTTP Basic prompt. Never combine this setting with a public port binding or an unauthenticated reverse proxy. The default remains `true`, and the Compose smoke test always verifies the authenticated mode.
+
 ## Health and metrics
 
 - `/actuator/health/liveness`: process only; anonymous for container orchestration
 - `/actuator/health/readiness`: application readiness plus database; anonymous
-- `/actuator/prometheus`: authenticated
+- `/actuator/prometheus`: authenticated by default; anonymous only when security is explicitly disabled
 
 Key custom metrics:
 

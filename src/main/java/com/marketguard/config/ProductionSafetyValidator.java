@@ -53,9 +53,6 @@ public class ProductionSafetyValidator {
         }
 
         if (environment.acceptsProfiles(Profiles.of("prod"))) {
-            if (!security.enabled()) {
-                throw new IllegalStateException("Operator authentication must be enabled in the prod profile");
-            }
             requireHttps(toss.baseUrl(), "Toss market-data base URL");
             requireHttps(toss.authUrl(), "Toss authentication URL");
         }
