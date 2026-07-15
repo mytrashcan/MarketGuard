@@ -32,6 +32,12 @@ Key custom metrics:
 - `marketguard_collector_batch_failures_total`
 - `marketguard_collector_item_failures_total`
 - `marketguard_anomalies_recorded_total`
+- `marketguard_detections_by_rule_total{rule}`
+- `marketguard_rule_evaluation_duration_seconds{rule}`
+- `marketguard_rule_evaluations_total{rule,outcome}`
+- `marketguard_cases_created_total`, `marketguard_cases_merged_total`, `marketguard_cases_reactivated_total`
+- `marketguard_cases_by_status{status}`, `marketguard_cases_by_score{bucket}`
+- `marketguard_cases_status_transitions_total{target}`, `marketguard_cases_notes_created_total`
 - `marketguard_toss_http_duration_seconds{client,endpoint,outcome}`
 - `marketguard_toss_retries_total{client}`
 - `marketguard_toss_circuit_transitions_total{client,transition}`
@@ -75,6 +81,8 @@ Migrations are forward-only. Application rollback is safe only when the older bi
 - Upstream outage/429: leave bounded retry/circuit behavior in place; do not shorten limits. The collector isolates failed batches and calendar failure stops scans.
 - Database unavailable: readiness becomes unhealthy; restore connectivity before restarting repeatedly.
 - Alert flood: disable the collector, preserve DB evidence, inspect thresholds/timestamps, then re-enable. Durable cooldown survives restart.
+- Case backlog: inspect `marketguard_cases_by_status`, filter old `NEW`/`REVIEWING` cases, and review per-rule dismissed ratios before changing any threshold. The application never tunes thresholds automatically.
+- Version conflict: reload the case detail and reapply the operator decision to the new version; never bypass optimistic locking.
 - Disk growth: snapshots retain one hour by default. Define environment-specific anomaly/audit retention before long-running production use.
 
 ## Shutdown
