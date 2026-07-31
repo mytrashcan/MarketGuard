@@ -1,10 +1,11 @@
 package com.marketguard.config;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +69,28 @@ class SecurityConfigIntegrationTest {
                         .contentType("application/json")
                         .content("{\"status\":\"REVIEWING\",\"version\":0}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectsAnonymousWritesWithAuthenticationChallenge() throws Exception {
+        mockMvc.perform(patch("/api/cases/1/status")
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{\"status\":\"REVIEWING\",\"version\":0}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Basic realm=\"marketguard\""));
+    }
+
+    @Test
+    void enablesHstsForHttps() throws Exception {
+        mockMvc.perform(get("/")
+                        .secure(true)
+                        .with(httpBasic("operator", "a-secure-password")))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Strict-Transport-Security", containsString("max-age=31536000")))
+                .andExpect(header().string(
+                        "Strict-Transport-Security", containsString("includeSubDomains")));
     }
 
     @Test

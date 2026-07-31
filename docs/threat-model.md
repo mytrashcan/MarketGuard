@@ -16,7 +16,8 @@ Trust boundaries are:
 
 | Threat | Primary controls | Residual risk |
 |---|---|---|
-| Unauthorized dashboard/API access | Production Basic auth, loopback host bind, TLS proxy requirement | Basic auth depends on TLS and operator password hygiene |
+| Unauthorized dashboard/API access | Production Basic auth, loopback host bind, TLS proxy requirement | Loopback reads are intentionally anonymous and must not be publicly routed |
+| Anonymous case mutation (MG-01) | Status/note routes require authentication in every mode; loopback uses a fail-closed operator token plus CSRF | A stolen browser/token can write until the token is rotated |
 | Cross-origin SockJS access | Exact origin allowlist; no wildcard | Reverse proxy must preserve the correct `Origin` |
 | DOM/stored XSS | Escaped API-derived values, constrained enums, CSP, SRI | Inline legacy dashboard code requires `'unsafe-inline'` |
 | Credential disclosure | No defaults, fail-fast validation, sanitized exceptions/logs, ignored local files, non-root image | Environment variables remain visible to privileged host operators |
@@ -29,6 +30,6 @@ Trust boundaries are:
 ## Explicit non-goals
 
 - No order placement, cancellation, account balance, position, transfer, or fund movement.
-- No public anonymous dashboard.
+- No public anonymous dashboard. Loopback mode deliberately permits local anonymous reads, including `/api/audit`, but is not a public deployment mode.
 - No claim of regulatory completeness, market-abuse proof, or investment suitability.
 - No horizontal scaling with a shared Toss client credential.

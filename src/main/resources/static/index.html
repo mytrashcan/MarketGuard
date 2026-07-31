@@ -603,7 +603,25 @@
     }
     async function writeApi(url, method, body) {
         const csrf = await csrfToken();
-        const response = await fetch(url, {method, headers:{"Content-Type":"application/json", [csrf.headerName]:csrf.token}, body:JSON.stringify(body)});
+        const request = operatorToken => fetch(url, {method, headers:{
+            "Content-Type":"application/json",
+            [csrf.headerName]:csrf.token,
+            ...(operatorToken ? {"X-Operator-Token":operatorToken} : {})
+        }, body:JSON.stringify(body)});
+        let operatorToken = localStorage.getItem("marketguard.operatorToken");
+        let response = await request(operatorToken);
+        if (response.status === 401 || response.status === 403) {
+            operatorToken = window.prompt("상태 변경과 메모 작성에는 운영자 토큰이 필요합니다. 운영자 토큰을 입력하세요.");
+            if (!operatorToken || !operatorToken.trim()) {
+                throw new Error("운영자 토큰이 필요합니다.");
+            }
+            localStorage.setItem("marketguard.operatorToken", operatorToken);
+            response = await request(operatorToken);
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem("marketguard.operatorToken");
+                throw new Error("운영자 토큰이 거부되었습니다. 토큰을 확인한 뒤 다시 시도하세요.");
+            }
+        }
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
             throw new Error(error.code === "CASE_VERSION_CONFLICT" ? "다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도하세요." : "요청을 처리하지 못했습니다.");
@@ -694,7 +712,7 @@
             `<div class="stat"><div class="v" style="color:#ffc14d">${warn}</div><div class="k">WARNING</div></div>`
         ];
         Object.entries(byRule).sort((a, b) => b[1] - a[1]).forEach(([rt, c]) =>
-            chips.push(`<div class="stat"><div class="v">${c}</div><div class="k">${RULE_LABELS[rt] || rt}</div></div>`));
+            chips.push(`<div class="stat"><div class="v">${c}</div><div class="k">${escapeHtml(RULE_LABELS[rt] || rt)}</div></div>`));
         document.getElementById("riskStats").innerHTML = chips.join("");
     }
     function setStatus(on) {

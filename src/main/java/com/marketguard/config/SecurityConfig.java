@@ -3,8 +3,8 @@ package com.marketguard.config;
 import java.nio.charset.StandardCharsets;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
@@ -32,27 +32,40 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain applicationSecurity(HttpSecurity http,
                                             MarketGuardSecurityProperties properties,
-                                            ApiRateLimitFilter apiRateLimitFilter) throws Exception {
+                                            ApiRateLimitFilter apiRateLimitFilter,
+                                            OperatorTokenFilter operatorTokenFilter) throws Exception {
+        CookieCsrfTokenRepository csrfTokenRepository = csrfTokenRepository(properties);
+
         http.csrf(csrf -> {
-                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse());
+                    csrf.csrfTokenRepository(csrfTokenRepository);
                     if (!properties.enabled()) {
                         csrf.ignoringRequestMatchers("/h2-console/**");
                     }
                 })
                 .cors(cors -> cors.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives(properties.enabled()
-                                ? PRODUCTION_CONTENT_SECURITY_POLICY
-                                : LOCAL_CONTENT_SECURITY_POLICY))
-                        .permissionsPolicyHeader(permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
-                        .frameOptions(frame -> {
-                            if (properties.enabled()) {
-                                frame.deny();
-                            } else {
-                                frame.sameOrigin();
-                            }
-                        }))
+                .headers(headers -> {
+                    headers.contentSecurityPolicy(csp -> csp.policyDirectives(properties.enabled()
+                                    ? PRODUCTION_CONTENT_SECURITY_POLICY
+                                    : LOCAL_CONTENT_SECURITY_POLICY))
+                            .permissionsPolicyHeader(
+                                    permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
+                            .frameOptions(frame -> {
+                                if (properties.enabled()) {
+                                    frame.deny();
+                                } else {
+                                    frame.sameOrigin();
+                                }
+                            });
+                    if (properties.enabled()) {
+                        headers.httpStrictTransportSecurity(hsts -> hsts
+                                .maxAgeInSeconds(31_536_000)
+                                .includeSubDomains(true));
+                    } else {
+                        headers.httpStrictTransportSecurity(hsts -> hsts.disable());
+                    }
+                })
+                .addFilterBefore(operatorTokenFilter, BasicAuthenticationFilter.class)
                 .addFilterBefore(apiRateLimitFilter, BasicAuthenticationFilter.class);
 
         if (properties.enabled()) {
@@ -68,10 +81,20 @@ public class SecurityConfig {
                                 "{\"code\":\"AUTHENTICATION_REQUIRED\",\"message\":\"Authentication is required\"}");
                     }));
         } else {
-            http.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
-                    .httpBasic(Customizer.withDefaults());
+            http.authorizeHttpRequests(authorize -> authorize
+                    .requestMatchers(HttpMethod.PATCH, "/api/cases/*/status").authenticated()
+                    .requestMatchers(HttpMethod.POST, "/api/cases/*/notes").authenticated()
+                    .anyRequest().permitAll());
         }
         return http.build();
+    }
+
+    static CookieCsrfTokenRepository csrfTokenRepository(MarketGuardSecurityProperties properties) {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieCustomizer(cookie -> cookie
+                .sameSite("Lax")
+                .secure(properties.enabled()));
+        return repository;
     }
 
     @Bean

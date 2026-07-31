@@ -1,6 +1,6 @@
 # Operator API
 
-Production endpoints require HTTP Basic authentication by default. A loopback-only personal deployment may explicitly set `MARKETGUARD_SECURITY_ENABLED=false`; in that mode the server uses `local-operator` as the review actor. All browser write requests still require the CSRF header returned by `GET /api/csrf`. Responses never contain upstream bodies or internal exception details.
+Production endpoints require HTTP Basic authentication by default. A loopback-only personal deployment may explicitly set `MARKETGUARD_SECURITY_ENABLED=false`; reads then remain anonymous, while status and note writes require the configured `MARKETGUARD_OPERATOR_TOKEN` in `X-Operator-Token`. The server uses the authenticated principal `operator` as the review actor. All browser write requests also require the CSRF header returned by `GET /api/csrf`. Responses never contain upstream bodies or internal exception details.
 
 ## Case list
 
@@ -46,6 +46,8 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 
 | Status | Code | Meaning |
 |---|---|---|
+| 401 | `AUTHENTICATION_REQUIRED` | supplied operator token is invalid or production authentication is missing |
+| 403 | — | CSRF token or configured loopback write authentication is missing |
 | 400 | `INVALID_REQUEST` | malformed, out-of-range, or invalid transition input |
 | 404 | `CASE_NOT_FOUND` | requested case/signal does not exist |
 | 409 | `CASE_VERSION_CONFLICT` | optimistic version is stale |

@@ -13,7 +13,7 @@ MarketGuard는 토스증권 Open API의 **공개 시장 데이터만 읽어** �
 - 6개 독립 탐지 규칙, 구조화된 관측 근거, 규칙별 장애 격리, 영속적 원자 쿨다운
 - 동일 종목 신호의 사건 그룹화, 설명 가능한 0~100 관심도 점수, 검토 상태·메모·이력
 - 타임아웃, 공식 호출 그룹별 rate limit, 선택적 재시도, `Retry-After`, circuit breaker
-- 운영자 HTTP Basic 인증, strict WebSocket Origin, 입력 제한, peer별 API rate limit, CSP/SRI
+- 운영자 HTTP Basic 인증, loopback 쓰기 토큰, strict WebSocket Origin, 입력 제한, peer별 API rate limit, CSP/SRI
 - PostgreSQL + Flyway + Hibernate schema validation
 - Prometheus 지표, liveness/readiness, 안전한 감사 로그
 - 실제 PostgreSQL Testcontainers 테스트와 Docker Compose 스모크 테스트
@@ -108,7 +108,18 @@ Compose는 다음을 강제합니다.
 
 운영 프로파일은 기본적으로 probes를 제외한 모든 경로에 인증을 요구합니다. 호스트 loopback에서만 사용하는
 개인용 배포는 `.env`의 `MARKETGUARD_SECURITY_ENABLED=false`로 로그인 화면을 끌 수 있습니다. 이 값을 끈
-상태로 포트를 외부에 공개하거나 인증 없는 reverse proxy에 연결하면 안 됩니다.
+상태에서도 사건 상태 변경과 메모 작성은 `MARKETGUARD_OPERATOR_TOKEN`이 없으면 거부됩니다. 충분히 긴 무작위
+토큰을 설정하면 대시보드가 첫 쓰기 시 토큰을 요청하고 브라우저의 `localStorage`에 저장해
+`X-Operator-Token` 헤더로 전송합니다.
+
+```bash
+MARKETGUARD_SECURITY_ENABLED=false
+MARKETGUARD_OPERATOR_TOKEN="$(openssl rand -hex 32)"
+```
+
+CSRF 토큰도 계속 필요하며, 검토자와 작성자는 클라이언트 입력이 아니라 인증된 principal인 `operator`로 서버가
+결정합니다. 이 모드의 조회 API와 `/api/audit`는 익명 접근을 의도하므로 포트를 외부에 공개하거나 인증 없는
+reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성을 보호할 뿐 조회 데이터의 기밀성을 제공하지 않습니다.
 아래 익명 접근 표는 기본값인 인증 활성화 모드를 기준으로 합니다.
 
 | 경로 | 설명 | 익명 접근 |

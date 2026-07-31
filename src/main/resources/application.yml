@@ -49,6 +49,7 @@ marketguard:
     enabled: ${MARKETGUARD_SECURITY_ENABLED:false}
     username: ${MARKETGUARD_ADMIN_USERNAME:}
     password: ${MARKETGUARD_ADMIN_PASSWORD:}
+    operator-token: ${MARKETGUARD_OPERATOR_TOKEN:}
     allowed-origins:
       - http://localhost:5050
       - http://127.0.0.1:5050
