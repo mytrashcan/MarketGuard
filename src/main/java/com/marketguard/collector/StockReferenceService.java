@@ -61,7 +61,10 @@ public class StockReferenceService implements StockNameResolver {
         if (symbols.isEmpty() || !hasCredentials()) {
             return;
         }
+        // 토스 종목명 API는 6자리 KRX 종목코드만 허용한다. 랭킹 응답에는 ETN(0197W0) 등
+        // 비표준 심볼이 섞일 수 있어, 섞이면 chunk 전체 조회가 실패하므로 먼저 걸러낸다.
         List<String> requested = symbols.stream()
+                .filter(symbol -> symbol.matches("\\d{6}"))
                 .filter(symbol -> !missingOnly || !names.containsKey(symbol))
                 .distinct()
                 .toList();
