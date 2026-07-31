@@ -49,8 +49,8 @@ flowchart LR
 
 ## 화면 수치의 의미
 
-- 등락률은 토스 랭킹 응답이 동일 집계 시각에 제공한 `lastPrice`, `basePrice`, `changeRate`를 한 묶음으로 사용합니다. 랭킹에 없는 종목만 무수정 일봉으로 계산하며 API/UI에 출처를 표시합니다.
-- “매수/매도”는 실제 체결 비율이나 투자자별 순매수가 아니라 공개 호가창의 **미체결 매수·매도 잔량 비율**입니다. 장외·미제공·upstream 오류를 0과 구분합니다.
+- 메인 화면은 토스 시장 전체의 거래대금·거래량·상승·하락 랭킹을 보여줍니다. 순위와 `lastPrice`, `basePrice`, `changeRate`, 거래량, 거래대금은 동일 응답의 값을 사용합니다.
+- 호환 API인 `/api/prices/live`의 “매수/매도”는 실제 체결 비율이나 투자자별 순매수가 아니라 공개 호가창의 **미체결 매수·매도 잔량 비율**입니다.
 - 탐지 사건은 종목명과 종목코드를 함께 저장합니다. 기존 데이터는 마이그레이션 시 종목코드를 안전한 이름 폴백으로 사용합니다.
 
 ## 빠른 시작
@@ -125,6 +125,7 @@ reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성�
 | 경로 | 설명 | 익명 접근 |
 |---|---|---|
 | `GET /api/prices/live` | watch list 현재 보드 | 아니요 |
+| `GET /api/rankings?type=MARKET_TRADING_AMOUNT&limit=50` | 서버에 캐시된 토스 시장 랭킹, `limit=1..100` | 아니요 |
 | `GET /api/stocks/{code}/candles?interval=1m&count=60` | 1분/일 캔들, `count=1..200` | 아니요 |
 | `GET /api/anomalies?limit=50` | 최근 이상 기록, `limit=1..200` | 아니요 |
 | `GET /api/anomalies/{id}` | 구조화된 단일 신호 근거 | 아니요 |
