@@ -16,7 +16,7 @@ class ApiRateLimitFilterTest {
     @Test
     void limitsApiRequestsPerRemoteAddress() throws Exception {
         MarketGuardSecurityProperties properties =
-                new MarketGuardSecurityProperties(true, "operator", "a-secure-password", List.of(), 2);
+                new MarketGuardSecurityProperties(true, "operator", "a-secure-password", "", List.of(), 2);
         ApiRateLimitFilter filter = new ApiRateLimitFilter(properties,
                 Clock.fixed(Instant.parse("2026-07-15T00:00:30Z"), ZoneOffset.UTC));
 
