@@ -37,6 +37,8 @@ public class TossMarketDataClient {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final Pattern KRX_SYMBOL = Pattern.compile("\\d{6}");
+    /** 종목명 조회용: 6자리 숫자 주식코드 또는 ETN/ETF처럼 4자리 숫자 + 2자리 영숫자(예: 0197W0). */
+    private static final Pattern NAME_LOOKUP_SYMBOL = Pattern.compile("\\d{6}|\\d{4}[A-Z0-9]{2}");
 
     private final RestClient tossApiClient;
     private final CircuitBreaker circuitBreaker;
@@ -296,12 +298,16 @@ public class TossMarketDataClient {
         if (symbols == null) {
             throw new IllegalArgumentException("symbols must not be null");
         }
-        if (symbols.size() > 200 || symbols.stream().anyMatch(symbol -> !isValidSymbol(symbol))) {
-            throw new IllegalArgumentException("symbols must contain up to 200 six-digit KRX symbols");
+        if (symbols.size() > 200 || symbols.stream().anyMatch(symbol -> !isValidNameLookupSymbol(symbol))) {
+            throw new IllegalArgumentException("symbols must contain up to 200 six-digit KRX symbols or ETN/ETF symbols");
         }
     }
 
     private static boolean isValidSymbol(String symbol) {
         return symbol != null && KRX_SYMBOL.matcher(symbol).matches();
+    }
+
+    private static boolean isValidNameLookupSymbol(String symbol) {
+        return symbol != null && NAME_LOOKUP_SYMBOL.matcher(symbol).matches();
     }
 }
