@@ -15,6 +15,6 @@ Current context availability:
 | same-time historical baseline | calculator tested; production history/cache deferred |
 | disclosures, news, new listing, split, ex-dividend | external data required |
 
-The dashboard's “buy/sell” bar is pending bid/ask quantity, not trade-side volume or investor net buying. The official rate shown for ranking members is the Toss `changeRate` paired with the same response's price and base price; fallback daily-candle calculations are visibly labeled.
+The main dashboard preserves the Toss ranking order and uses each response's matching price, base price, change rate, volume, and trading amount. The legacy `/api/prices/live` “buy/sell” value is pending bid/ask quantity, not trade-side volume or investor net buying.
 
 Review outcomes are analytics for operator judgment. They do not automatically tune detection thresholds because the sample is biased, labels are subjective, and automated feedback could hide future signals.

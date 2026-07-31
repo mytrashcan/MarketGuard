@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.marketguard.collector.BoardDataService;
+import com.marketguard.collector.MarketRankingQuote;
+import com.marketguard.collector.MarketRankingService;
+import com.marketguard.collector.MarketRankingType;
 import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossApiException;
 import com.marketguard.collector.client.TossMarketDataClient;
@@ -22,6 +25,7 @@ import com.marketguard.detection.model.Severity;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +54,9 @@ class DashboardControllerTest {
 
     @MockitoBean
     private BoardDataService boardDataService;
+
+    @MockitoBean
+    private MarketRankingService marketRankingService;
 
     @MockitoBean
     private AuditLogRepository auditLogRepository;
@@ -82,6 +89,37 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         verifyNoInteractions(anomalyRepository);
+    }
+
+    @Test
+    void returnsTheCachedTossRankingWithOfficialRankAndStockName() throws Exception {
+        when(marketRankingService.current(MarketRankingType.MARKET_TRADING_AMOUNT))
+                .thenReturn(List.of(new MarketRankingQuote(
+                        2, "005930", new BigDecimal("72000"), new BigDecimal("70000"),
+                        new BigDecimal("0.0286"), 123456L, 8_888_888L,
+                        Instant.parse("2026-07-15T01:00:00Z"))));
+        when(stockReferenceService.nameOf("005930")).thenReturn("삼성전자");
+
+        mockMvc.perform(get("/api/rankings")
+                        .queryParam("type", "MARKET_TRADING_AMOUNT")
+                        .queryParam("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].rank").value(2))
+                .andExpect(jsonPath("$[0].code").value("005930"))
+                .andExpect(jsonPath("$[0].name").value("삼성전자"))
+                .andExpect(jsonPath("$[0].changePercent").value(2.8600))
+                .andExpect(jsonPath("$[0].tradingAmount").value(8_888_888L));
+    }
+
+    @Test
+    void rejectsUnsupportedRankingTypeAndLimit() throws Exception {
+        mockMvc.perform(get("/api/rankings")
+                        .queryParam("type", "UNSUPPORTED")
+                        .queryParam("limit", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        verifyNoInteractions(marketRankingService);
     }
 
     @Test
