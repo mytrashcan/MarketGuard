@@ -20,6 +20,7 @@ class DashboardPriceChangeDisplayTest {
                 "chgHtml(it.changePercent, it.closed, it.changeSource)",
                 "토스 공식",
                 "일봉 계산",
-                "무수정 일봉");
+                "무수정 일봉",
+                "it.changeSource");
     }
 }
