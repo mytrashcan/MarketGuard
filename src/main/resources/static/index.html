@@ -235,9 +235,9 @@
     <section id="help" class="panel">
         <p class="hint">대시보드 용어와 이상징후 탐지 룰을 쉽게 설명합니다.</p>
         <div class="gloss">
-            <div class="term"><h3>등락률 (전일 기준가 대비)</h3><p>토스증권 Open API 랭킹이 같은 집계 시각에 제공한 <b>현재가·전일 기준가·changeRate</b>를 그대로 사용합니다. 랭킹에 없는 종목만 무수정 일봉으로 계산하며 출처를 구분합니다. <b class="up">빨강 ▲</b> 상승 / <b class="down">파랑 ▼</b> 하락(한국식 색).</p></div>
+            <div class="term"><h3>등락률 (전일 기준가 대비)</h3><p>시장 랭킹이 같은 집계 시각에 제공한 <b>현재가·전일 기준가·등락률</b>을 사용합니다. <b class="up">빨강 ▲</b> 상승 / <b class="down">파랑 ▼</b> 하락(한국식 색).</p></div>
             <div class="term"><h3>시장 랭킹</h3><p>토스증권 Open API가 제공하는 시장 전체 거래대금·거래량·상승·하락 상위 종목입니다. 거래대금·거래량은 실시간 기준이고 상승·하락은 당일 기준입니다.</p></div>
-            <div class="term"><h3>거래량과 거래대금</h3><p>거래량은 당일 누적 체결 수량(주), 거래대금은 당일 누적 체결 금액(원)입니다. 선택한 탭의 토스 공식 순위를 그대로 표시합니다.</p></div>
+            <div class="term"><h3>거래량과 거래대금</h3><p>거래량은 당일 누적 체결 수량(주), 거래대금은 당일 누적 체결 금액(원)입니다. 선택한 탭의 순위대로 표시합니다.</p></div>
             <div class="term"><h3>봉(캔들)</h3><p>일정 기간(1분·1일)의 <b>시가·고가·저가·종가</b>를 막대 하나로 표현. 몸통은 시가~종가, 위아래 꼬리는 고가·저가.</p></div>
             <div class="term"><h3>🚨 가격 급변동 (PRICE_SPIKE)</h3><p>현재가가 직전 평균가 대비 ±일정 % 이상 급등/급락. 단기 이상 변동을 잡습니다.</p></div>
             <div class="term"><h3>🚨 가격제한폭 도달 (PRICE_LIMIT)</h3><p>하루 최대 변동폭(±30%)인 <b>상한가/하한가</b>에 도달하거나 근접.</p></div>
@@ -319,7 +319,7 @@
         body.innerHTML = lastBoard.map(it => {
             const nm = it.name || it.code;
             const observed = it.rankedAt ? new Date(it.rankedAt).toLocaleTimeString("ko-KR") : "시각 없음";
-            const basis = it.previousClose == null ? "기준가 없음" : `기준가 ${fmtKRW(it.previousClose)}원 · 토스 공식 랭킹 · ${observed}`;
+            const basis = it.previousClose == null ? "기준가 없음" : `기준가 ${fmtKRW(it.previousClose)}원 · ${observed}`;
             return `<tr data-code="${escapeHtml(it.code)}" class="${it.code === selectedCode ? "sel" : ""}">` +
                 `<td class="rank">${Number(it.rank) || "–"}</td>` +
                 `<td><span class="nm">${escapeHtml(nm)}</span> <span class="cd">${escapeHtml(it.code)}</span></td>` +

@@ -17,6 +17,9 @@ class DashboardPriceChangeDisplayTest {
                 "const sourceTag =",
                 "<span class=\"ctag\">토스 공식</span>",
                 "<span class=\"ctag\">일봉 계산</span>",
-                "chgHtml(it.changePercent, it.closed, it.changeSource)");
+                "chgHtml(it.changePercent, it.closed, it.changeSource)",
+                "토스 공식",
+                "일봉 계산",
+                "무수정 일봉");
     }
 }
