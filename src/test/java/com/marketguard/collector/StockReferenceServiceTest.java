@@ -59,16 +59,17 @@ class StockReferenceServiceTest {
         TossApiProperties properties = new TossApiProperties(
                 "https://example.test", "https://example.test/oauth2/token",
                 "client-id", "client-secret", List.of());
-        when(marketDataClient.fetchStockNames(List.of("005930", "069500")))
-                .thenReturn(Map.of("005930", "삼성전자", "069500", "KODEX 200"));
+        when(marketDataClient.fetchStockNames(List.of("005930", "0197W0", "069500")))
+                .thenReturn(Map.of("005930", "삼성전자", "069500", "KODEX 200", "0197W0", "SOL SK하이닉스단일종목레버리지"));
         StockReferenceService service = new StockReferenceService(
                 properties, marketDataClient, symbolUniverse);
 
-        // 랭킹 응답에 섞일 수 있는 ETN 등 비6자리 심볼은 종목명 API 호출에서 제외되어야 한다.
-        service.refreshMissing(List.of("005930", "0197W0", "069500"));
+        // 랭킹 응답의 6자리 숫자 주식/ETF와 ETN(4자리 숫자 + 2자리 영숫자)은 모두 종목명 조회 대상.
+        service.refreshMissing(List.of("005930", "0197W0", "069500", "UNKNOWN_SYMBOL"));
 
         assertThat(service.nameOf("005930")).isEqualTo("삼성전자");
-        assertThat(service.nameOf("0197W0")).isNull();
-        verify(marketDataClient).fetchStockNames(List.of("005930", "069500"));
+        assertThat(service.nameOf("0197W0")).isEqualTo("SOL SK하이닉스단일종목레버리지");
+        assertThat(service.nameOf("UNKNOWN_SYMBOL")).isNull();
+        verify(marketDataClient).fetchStockNames(List.of("005930", "0197W0", "069500"));
     }
 }
