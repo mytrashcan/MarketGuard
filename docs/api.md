@@ -13,7 +13,7 @@ Production endpoints require HTTP Basic authentication by default. A loopback-on
 | `status` | `NEW`, `REVIEWING`, `WATCHING`, `DISMISSED`, `ESCALATED`, `CLOSED` |
 | `ruleType` | a documented rule enum |
 | `severity` | `INFO`, `WARNING`, `CRITICAL` |
-| `stockCode` | exactly six digits |
+| `stockCode` | exactly six digits, `KOSPI`, or `KOSDAQ` |
 | `from`, `to` | ISO-8601 instants; `from <= to` |
 | `minimumScore`, `maximumScore` | 0 to 100; minimum cannot exceed maximum |
 | `sort` | `lastDetectedAt`, `firstDetectedAt`, `score`, `stockCode`, `status` |

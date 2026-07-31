@@ -15,8 +15,9 @@ public record Anomaly(
         AnomalyEvidence evidence
 ) {
     public Anomaly {
-        if (stockCode == null || !stockCode.matches("\\d{6}")) {
-            throw new IllegalArgumentException("stockCode must be a six-digit KRX symbol");
+        if (!MarketInstrument.isSupported(stockCode)) {
+            throw new IllegalArgumentException(
+                    "stockCode must be a six-digit KRX symbol, KOSPI, or KOSDAQ");
         }
         Objects.requireNonNull(ruleType, "ruleType must not be null");
         Objects.requireNonNull(severity, "severity must not be null");

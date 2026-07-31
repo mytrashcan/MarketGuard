@@ -11,6 +11,7 @@ import com.marketguard.config.RestClientConfig;
 import com.marketguard.config.TossHttpProperties;
 import com.marketguard.collector.MarketRankingQuote;
 import com.marketguard.detection.model.Candle;
+import com.marketguard.detection.model.InstitutionalTradingRecord;
 import com.marketguard.detection.model.MarketPrice;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
@@ -158,6 +159,57 @@ class TossMarketDataClientCharacterizationTest {
     }
 
     @Test
+    void mapsOfficialInstitutionalTradingTotalsAndBreakdown() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL
+                        + "/api/v1/market-indicators/KOSPI/investor-trading?interval=1d&count=20"))
+                .andRespond(withSuccess("""
+                        {"result":{"nextUntil":"2026-07-29","records":[{
+                          "date":"2026-07-31","updatedAt":"2026-07-31T15:20:00+09:00",
+                          "institution":{
+                            "buyAmount":"280","sellAmount":"210",
+                            "breakdown":{
+                              "financialInvestment":{"buyAmount":"100","sellAmount":"80"},
+                              "insurance":{"buyAmount":"20","sellAmount":"10"},
+                              "trust":{"buyAmount":"40","sellAmount":"30"},
+                              "privateEquityFund":{"buyAmount":"30","sellAmount":"20"},
+                              "bank":{"buyAmount":"10","sellAmount":"10"},
+                              "otherFinancialInstitution":{"buyAmount":"20","sellAmount":"20"},
+                              "pensionFund":{"buyAmount":"60","sellAmount":"40"}
+                            }
+                          }
+                        }]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<InstitutionalTradingRecord> result = client.fetchInstitutionalTrading("KOSPI", 20);
+
+        assertThat(result).singleElement().satisfies(record -> {
+            assertThat(record.marketSymbol()).isEqualTo("KOSPI");
+            assertThat(record.updatedAt()).isEqualTo(Instant.parse("2026-07-31T06:20:00Z"));
+            assertThat(record.institution().buyAmount()).isEqualByComparingTo("280");
+            assertThat(record.institution().sellAmount()).isEqualByComparingTo("210");
+            assertThat(record.netAmount()).isEqualByComparingTo("70");
+            assertThat(record.breakdown().pensionFund().netAmount()).isEqualByComparingTo("20");
+        });
+        server.verify();
+    }
+
+    @Test
+    void rejectsUnsupportedInstitutionalTradingInputsWithoutAnHttpCall() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+
+        assertThatThrownBy(() -> client.fetchInstitutionalTrading("005930", 20))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.fetchInstitutionalTrading("KOSPI", 101))
+                .isInstanceOf(IllegalArgumentException.class);
+        server.verify();
+    }
+
+    @Test
     void doesNotRetryPermanentClientErrorsOrRetainTheirBody() {
         RestClient.Builder builder = configuredBuilder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -213,6 +265,6 @@ class TossMarketDataClientCharacterizationTest {
                 new ResilienceConfig().tossMarketRetry(HTTP_PROPERTIES),
                 RateLimiter.ofDefaults("market"), RateLimiter.ofDefaults("chart"),
                 RateLimiter.ofDefaults("stock"), RateLimiter.ofDefaults("calendar"),
-                RateLimiter.ofDefaults("ranking"));
+                RateLimiter.ofDefaults("ranking"), RateLimiter.ofDefaults("marketIndicator"));
     }
 }

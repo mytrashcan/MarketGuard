@@ -69,6 +69,17 @@ class CaseControllerTest {
     }
 
     @Test
+    void acceptsSupportedMarketSymbolsAndRejectsArbitraryInstrumentNames() throws Exception {
+        when(queryService.find(any(), any(), any(), eq("KOSPI"), any(), any(),
+                any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/cases").queryParam("stockCode", "KOSPI"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/cases").queryParam("stockCode", "SYNTHETIC"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void updatesStatusUsingTheAuthenticatedPrincipalAndVersion() throws Exception {
         SurveillanceCase value = org.mockito.Mockito.mock(SurveillanceCase.class);
         when(value.getId()).thenReturn(1L);
