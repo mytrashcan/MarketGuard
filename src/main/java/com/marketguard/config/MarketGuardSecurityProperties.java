@@ -13,6 +13,7 @@ public record MarketGuardSecurityProperties(
         boolean enabled,
         String username,
         String password,
+        String operatorToken,
         List<String> allowedOrigins,
         @Min(1) @Max(10_000) int requestsPerMinute
 ) {

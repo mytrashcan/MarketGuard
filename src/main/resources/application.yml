@@ -49,6 +49,7 @@ marketguard:
     enabled: ${MARKETGUARD_SECURITY_ENABLED:false}
     username: ${MARKETGUARD_ADMIN_USERNAME:}
     password: ${MARKETGUARD_ADMIN_PASSWORD:}
+    operator-token: ${MARKETGUARD_OPERATOR_TOKEN:}
     allowed-origins:
       - http://localhost:5050
       - http://127.0.0.1:5050
@@ -108,6 +109,7 @@ scan:
 board:
   push-interval-ms: 2000         # 현재가 푸시 주기(ms)
   detail-refresh-ms: 15000       # 전일종가·거래량·미니캔들 갱신 주기(ms, 호출량 절감용)
+  ranking-refresh-ms: 15000      # 메인 화면의 토스 랭킹 4종 서버 캐시 갱신 주기
 
 # 토스 종목 기본 정보는 영업일 단위로 갱신되므로 하루 동안 캐시
 stock-reference:

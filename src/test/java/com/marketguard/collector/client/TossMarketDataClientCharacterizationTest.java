@@ -10,6 +10,7 @@ import com.marketguard.config.ResilienceConfig;
 import com.marketguard.config.RestClientConfig;
 import com.marketguard.config.TossHttpProperties;
 import com.marketguard.collector.MarketRankingQuote;
+import com.marketguard.collector.MarketRankingType;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.InstitutionalTradingRecord;
 import com.marketguard.detection.model.MarketPrice;
@@ -139,6 +140,30 @@ class TossMarketDataClientCharacterizationTest {
     }
 
     @Test
+    void requestsDailyGainersAndMapsRankAndTradingAmount() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL + "/api/v1/rankings?type=TOP_GAINERS"
+                        + "&marketCountry=KR&duration=1d&count=20"))
+                .andRespond(withSuccess("""
+                        {"result":{"rankedAt":"2026-07-15T10:00:00+09:00","rankings":[{
+                          "rank":3,"symbol":"005930","currency":"KRW",
+                          "price":{"lastPrice":"72000","basePrice":"70000","changeRate":"0.0286"},
+                          "tradingVolume":"123456","tradingAmount":"8888888"
+                        }]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<MarketRankingQuote> result = client.fetchKrRanking(MarketRankingType.TOP_GAINERS, 20);
+
+        assertThat(result).singleElement().satisfies(quote -> {
+            assertThat(quote.rank()).isEqualTo(3);
+            assertThat(quote.tradingAmount()).isEqualTo(8888888L);
+        });
+        server.verify();
+    }
+
+    @Test
     void mapsOfficialKoreanStockNames() {
         RestClient.Builder builder = configuredBuilder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -239,6 +264,8 @@ class TossMarketDataClientCharacterizationTest {
         TossMarketDataClient client = client(builder);
 
         assertThatThrownBy(() -> client.fetchCandles("../secret", "1h", 1_000))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> client.fetchKrRanking(MarketRankingType.MARKET_TRADING_AMOUNT, 101))
                 .isInstanceOf(IllegalArgumentException.class);
         server.verify();
     }

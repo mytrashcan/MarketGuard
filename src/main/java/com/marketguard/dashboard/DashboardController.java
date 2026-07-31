@@ -2,6 +2,8 @@ package com.marketguard.dashboard;
 
 import com.marketguard.collector.BoardDataService;
 import com.marketguard.collector.BoardItem;
+import com.marketguard.collector.MarketRankingService;
+import com.marketguard.collector.MarketRankingType;
 import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
@@ -32,6 +34,7 @@ public class DashboardController {
     private final PriceSnapshotRepository snapshotRepository;
     private final TossMarketDataClient marketDataClient;
     private final BoardDataService boardDataService;
+    private final MarketRankingService marketRankingService;
     private final AuditLogRepository auditLogRepository;
     private final StockReferenceService stockReferenceService;
 
@@ -39,12 +42,14 @@ public class DashboardController {
                               PriceSnapshotRepository snapshotRepository,
                               TossMarketDataClient marketDataClient,
                               BoardDataService boardDataService,
+                              MarketRankingService marketRankingService,
                               AuditLogRepository auditLogRepository,
                               StockReferenceService stockReferenceService) {
         this.anomalyRepository = anomalyRepository;
         this.snapshotRepository = snapshotRepository;
         this.marketDataClient = marketDataClient;
         this.boardDataService = boardDataService;
+        this.marketRankingService = marketRankingService;
         this.auditLogRepository = auditLogRepository;
         this.stockReferenceService = stockReferenceService;
     }
@@ -56,6 +61,17 @@ public class DashboardController {
     @GetMapping("/prices/live")
     public List<BoardItem> livePrices() {
         return boardDataService.currentBoard();
+    }
+
+    /** Cached Toss market ranking for the main dashboard. */
+    @GetMapping("/rankings")
+    public List<RankingView> rankings(
+            @RequestParam(defaultValue = "MARKET_TRADING_AMOUNT") MarketRankingType type,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit) {
+        return marketRankingService.current(type).stream()
+                .limit(limit)
+                .map(quote -> RankingView.from(quote, stockReferenceService.nameOf(quote.stockCode())))
+                .toList();
     }
 
     /** 캔들(봉) 차트 데이터. interval=1m|1d, count 1~200 */

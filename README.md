@@ -13,7 +13,7 @@ MarketGuard는 토스증권 Open API의 **공개 시장 데이터만 읽어** �
 - 8개 탐지 규칙, 구조화된 관측 근거, 규칙별 장애 격리, 영속적 원자 쿨다운
 - 동일 종목 신호의 사건 그룹화, 설명 가능한 0~100 관심도 점수, 검토 상태·메모·이력
 - 타임아웃, 공식 호출 그룹별 rate limit, 선택적 재시도, `Retry-After`, circuit breaker
-- 운영자 HTTP Basic 인증, strict WebSocket Origin, 입력 제한, peer별 API rate limit, CSP/SRI
+- 운영자 HTTP Basic 인증, loopback 쓰기 토큰, strict WebSocket Origin, 입력 제한, peer별 API rate limit, CSP/SRI
 - PostgreSQL + Flyway + Hibernate schema validation
 - Prometheus 지표, liveness/readiness, 안전한 감사 로그
 - 실제 PostgreSQL Testcontainers 테스트와 Docker Compose 스모크 테스트
@@ -51,8 +51,8 @@ flowchart LR
 
 ## 화면 수치의 의미
 
-- 등락률은 토스 랭킹 응답이 동일 집계 시각에 제공한 `lastPrice`, `basePrice`, `changeRate`를 한 묶음으로 사용합니다. 랭킹에 없는 종목만 무수정 일봉으로 계산하며 API/UI에 출처를 표시합니다.
-- “매수/매도”는 실제 체결 비율이나 투자자별 순매수가 아니라 공개 호가창의 **미체결 매수·매도 잔량 비율**입니다. 장외·미제공·upstream 오류를 0과 구분합니다.
+- 메인 화면은 토스 시장 전체의 거래대금·거래량·상승·하락 랭킹을 보여줍니다. 순위와 `lastPrice`, `basePrice`, `changeRate`, 거래량, 거래대금은 동일 응답의 값을 사용합니다.
+- 호환 API인 `/api/prices/live`의 “매수/매도”는 실제 체결 비율이나 투자자별 순매수가 아니라 공개 호가창의 **미체결 매수·매도 잔량 비율**입니다. 장외·미제공·upstream 오류를 0과 구분합니다.
 - 기관 수급 신호는 KOSPI·KOSDAQ **시장 전체 합계**입니다. 개별 종목이나 특정 기관의 매매를 나타내지 않으며, 당일 값은 장 종료 전까지 갱신되는 잠정치입니다.
 - 탐지 사건은 종목 또는 시장 이름과 심볼을 함께 저장합니다. 기존 데이터는 마이그레이션 시 종목코드를 안전한 이름 폴백으로 사용합니다.
 
@@ -111,12 +111,24 @@ Compose는 다음을 강제합니다.
 
 운영 프로파일은 기본적으로 probes를 제외한 모든 경로에 인증을 요구합니다. 호스트 loopback에서만 사용하는
 개인용 배포는 `.env`의 `MARKETGUARD_SECURITY_ENABLED=false`로 로그인 화면을 끌 수 있습니다. 이 값을 끈
-상태로 포트를 외부에 공개하거나 인증 없는 reverse proxy에 연결하면 안 됩니다.
+상태에서도 사건 상태 변경과 메모 작성은 `MARKETGUARD_OPERATOR_TOKEN`이 없으면 거부됩니다. 충분히 긴 무작위
+토큰을 설정하면 대시보드가 첫 쓰기 시 토큰을 요청하고 브라우저의 `localStorage`에 저장해
+`X-Operator-Token` 헤더로 전송합니다.
+
+```bash
+MARKETGUARD_SECURITY_ENABLED=false
+MARKETGUARD_OPERATOR_TOKEN="$(openssl rand -hex 32)"
+```
+
+CSRF 토큰도 계속 필요하며, 검토자와 작성자는 클라이언트 입력이 아니라 인증된 principal인 `operator`로 서버가
+결정합니다. 이 모드의 조회 API와 `/api/audit`는 익명 접근을 의도하므로 포트를 외부에 공개하거나 인증 없는
+reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성을 보호할 뿐 조회 데이터의 기밀성을 제공하지 않습니다.
 아래 익명 접근 표는 기본값인 인증 활성화 모드를 기준으로 합니다.
 
 | 경로 | 설명 | 익명 접근 |
 |---|---|---|
 | `GET /api/prices/live` | watch list 현재 보드 | 아니요 |
+| `GET /api/rankings?type=MARKET_TRADING_AMOUNT&limit=50` | 서버에 캐시된 토스 시장 랭킹, `limit=1..100` | 아니요 |
 | `GET /api/stocks/{code}/candles?interval=1m&count=60` | 1분/일 캔들, `count=1..200` | 아니요 |
 | `GET /api/anomalies?limit=50` | 최근 이상 기록, `limit=1..200` | 아니요 |
 | `GET /api/anomalies/{id}` | 구조화된 단일 신호 근거 | 아니요 |

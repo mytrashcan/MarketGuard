@@ -16,7 +16,7 @@ Current context availability:
 | same-time historical baseline | calculator tested; production history/cache deferred |
 | disclosures, news, new listing, split, ex-dividend | external data required |
 
-The dashboard's “buy/sell” bar is pending bid/ask quantity, not trade-side volume or investor net buying. The official rate shown for ranking members is the Toss `changeRate` paired with the same response's price and base price; fallback daily-candle calculations are visibly labeled.
+The main dashboard preserves the Toss ranking order and uses each response's matching price, base price, change rate, volume, and trading amount. The legacy `/api/prices/live` “buy/sell” value is pending bid/ask quantity, not trade-side volume or investor net buying.
 
 Institutional-flow signals use the KOSPI or KOSDAQ market-wide institution total. They do not attribute flow to an individual stock or a particular institution. The current-day record can change until the upstream end-of-day update, so operators must confirm the final value before escalation.
 

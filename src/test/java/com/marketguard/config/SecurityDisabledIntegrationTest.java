@@ -3,6 +3,7 @@ package com.marketguard.config;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ class SecurityDisabledIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void allowsDashboardReadsWithoutLoginButKeepsCsrfForWrites() throws Exception {
+    void allowsDashboardReadsWithoutLoginButRejectsWritesWhenTokenIsUnset() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/cases"))
@@ -33,6 +34,13 @@ class SecurityDisabledIntegrationTest {
                         .with(csrf())
                         .contentType("application/json")
                         .content("{\"status\":\"REVIEWING\",\"version\":0}"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void omitsHsts() throws Exception {
+        mockMvc.perform(get("/").secure(true))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Strict-Transport-Security"));
     }
 }
