@@ -9,7 +9,9 @@ import com.marketguard.detection.model.Candle;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.time.Instant;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,10 +39,14 @@ public class StockContextController {
     @GetMapping("/{code}/context")
     public StockContextView context(
             @PathVariable @Pattern(regexp = "\\d{6}") String code,
-            @RequestParam(defaultValue = "60") @Min(2) @Max(200) int count) {
+            @RequestParam(defaultValue = "60") @Min(2) @Max(200) int count,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant before) {
         BoardItem quote = boardDataService.currentBoard().stream()
                 .filter(item -> item.code().equals(code)).findFirst().orElse(null);
-        List<Candle> candles = marketDataClient.fetchCandles(code, "1m", count);
+        List<Candle> candles = before == null
+                ? marketDataClient.fetchCandles(code, "1m", count)
+                : marketDataClient.fetchCandlesBefore(code, "1m", count, before);
         return new StockContextView(code, stockReferenceService.nameOf(code), quote, candles,
                 RelativeMovement.unavailable(
                         "업종 분류와 시장지수 시계열이 현재 수집 데이터에 없어 상대 움직임은 계산하지 않습니다."),

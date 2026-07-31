@@ -10,11 +10,13 @@ import com.marketguard.detection.model.Warning;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.ratelimiter.RateLimiter;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -122,15 +124,22 @@ public class TossMarketDataClient {
 
     /** 단일 종목 캔들(OHLCV). GET /api/v1/candles?symbol=...&interval=1m&count=N */
     public List<Candle> fetchCandles(String symbol, String interval, int count) {
-        return fetchCandles(symbol, interval, count, null);
+        return fetchCandles(symbol, interval, count, null, null);
     }
 
     /** 수정주가 적용 여부를 명시해 캔들을 조회한다. */
     public List<Candle> fetchCandles(String symbol, String interval, int count, boolean adjusted) {
-        return fetchCandles(symbol, interval, count, Boolean.valueOf(adjusted));
+        return fetchCandles(symbol, interval, count, Boolean.valueOf(adjusted), null);
     }
 
-    private List<Candle> fetchCandles(String symbol, String interval, int count, Boolean adjusted) {
+    /** 지정 시각 이하의 캔들을 조회해 과거 사건 주변 차트를 구성한다. */
+    public List<Candle> fetchCandlesBefore(String symbol, String interval, int count, Instant before) {
+        Objects.requireNonNull(before, "before must not be null");
+        return fetchCandles(symbol, interval, count, null, before);
+    }
+
+    private List<Candle> fetchCandles(
+            String symbol, String interval, int count, Boolean adjusted, Instant before) {
         requireSymbol(symbol);
         if (!("1m".equals(interval) || "1d".equals(interval))) {
             throw new IllegalArgumentException("interval must be 1m or 1d");
@@ -147,6 +156,9 @@ public class TossMarketDataClient {
                             .queryParam("count", count);
                     if (adjusted != null) {
                         builder.queryParam("adjusted", adjusted);
+                    }
+                    if (before != null) {
+                        builder.queryParam("before", before);
                     }
                     return builder.build();
                 })

@@ -95,6 +95,21 @@ class TossMarketDataClientCharacterizationTest {
     }
 
     @Test
+    void requestsCandlesAtOrBeforeTheCaseChartBoundary() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL
+                        + "/api/v1/candles?symbol=005930&interval=1m&count=120"
+                        + "&before=2026-07-15T02:00:00Z"))
+                .andRespond(withSuccess("{\"result\":{\"candles\":[]}}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.fetchCandlesBefore(
+                "005930", "1m", 120, Instant.parse("2026-07-15T02:00:00Z"))).isEmpty();
+        server.verify();
+    }
+
+    @Test
     void mapsOfficialRankingBasePriceAndTradingVolume() {
         RestClient.Builder builder = configuredBuilder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
