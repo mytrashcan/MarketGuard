@@ -3,6 +3,7 @@ package com.marketguard.collector;
 import com.marketguard.application.port.StockNameResolver;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.TossApiProperties;
+import com.marketguard.detection.model.MarketInstrument;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,9 @@ public class StockReferenceService implements StockNameResolver {
 
     @Override
     public String nameOf(String stockCode) {
+        if (MarketInstrument.isMarket(stockCode)) {
+            return MarketInstrument.displayName(stockCode);
+        }
         return names.get(stockCode);
     }
 

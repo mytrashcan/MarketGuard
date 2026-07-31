@@ -41,4 +41,4 @@ migration_count="$(docker compose exec --no-TTY postgres \
   psql --tuples-only --no-align --username "${POSTGRES_USER:-marketguard}" \
   --dbname "${POSTGRES_DB:-marketguard}" \
   --command 'select count(*) from flyway_schema_history where success = true')"
-test "${migration_count}" = "4"
+test "${migration_count}" = "5"

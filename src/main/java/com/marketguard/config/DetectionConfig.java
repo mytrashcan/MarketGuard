@@ -4,6 +4,7 @@ import com.marketguard.detection.engine.RuleEngine;
 import com.marketguard.detection.engine.RuleEvaluationObserver;
 import com.marketguard.detection.rule.DetectionRule;
 import com.marketguard.detection.rule.InvestmentWarningRule;
+import com.marketguard.detection.rule.InstitutionalFlowDetector;
 import com.marketguard.detection.rule.OrderbookImbalanceRule;
 import com.marketguard.detection.rule.PriceLimitRule;
 import com.marketguard.detection.rule.PriceSpikeRule;
@@ -47,6 +48,16 @@ public class DetectionConfig {
             PriceSpikeProperties price, VolumeSurgeProperties volume) {
         return new PriceVolumeSurgeRule(price.thresholdPercent(), price.lookback(),
                 volume.multiplier(), volume.lookback());
+    }
+
+    @Bean
+    InstitutionalFlowDetector institutionalFlowDetector(InstitutionalFlowProperties properties) {
+        return new InstitutionalFlowDetector(
+                properties.multiplier(),
+                properties.lookback(),
+                properties.minimumSamples(),
+                properties.minimumNetAmount(),
+                properties.maxAge());
     }
 
     @Bean

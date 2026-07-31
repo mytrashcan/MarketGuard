@@ -50,6 +50,11 @@ public class ResilienceConfig {
         return rateLimiter("tossRanking", 3);
     }
 
+    @Bean("tossMarketIndicatorRateLimiter")
+    RateLimiter tossMarketIndicatorRateLimiter() {
+        return rateLimiter("tossMarketIndicator", 3);
+    }
+
     @Bean("tossAuthRateLimiter")
     RateLimiter tossAuthRateLimiter() {
         return rateLimiter("tossAuth", 5);

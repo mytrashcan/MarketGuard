@@ -19,7 +19,18 @@ docker compose ps
 
 The app binds the host port to `127.0.0.1`; publish it through an authenticated TLS reverse proxy. Set `MARKETGUARD_ALLOWED_ORIGINS` to the exact public HTTPS origin.
 
-For a single-user machine that remains bound to loopback, `MARKETGUARD_SECURITY_ENABLED=false` disables the HTTP Basic prompt. Never combine this setting with a public port binding or an unauthenticated reverse proxy. The default remains `true`, and the Compose smoke test always verifies the authenticated mode.
+For a single-user machine that remains bound to loopback, `MARKETGUARD_SECURITY_ENABLED=false` disables the HTTP Basic prompt for reads. Case status and note writes still require both CSRF protection and an operator token. Generate a long random value, store it with the other deployment secrets, and restart the app after setting it:
+
+```bash
+MARKETGUARD_SECURITY_ENABLED=false
+MARKETGUARD_OPERATOR_TOKEN="$(openssl rand -hex 32)"
+```
+
+The dashboard prompts once after an unauthenticated write, stores the token in browser `localStorage`, and sends it as `X-Operator-Token`. The server records the authenticated principal `operator` as the actor/author; request bodies cannot supply that value. An empty token is fail-closed: reads remain available, but writes return `403`. An incorrect token returns `401`.
+
+Rotate a suspected exposed token in the secret manager, restart the app, and clear the old browser value with `localStorage.removeItem("marketguard.operatorToken")` before the next write. Treat the header as a bearer credential and use HTTPS whenever traffic leaves the host.
+
+Loopback mode intentionally leaves read endpoints, including `/api/audit`, anonymous. Never combine it with a public port binding or an unauthenticated reverse proxy/tunnel: the token protects write integrity, not read confidentiality. The default remains `true`, and the Compose smoke test always verifies the HTTP Basic authenticated mode.
 
 ## Health and metrics
 
@@ -86,6 +97,7 @@ Migrations are forward-only. Application rollback is safe only when the older bi
 - Case backlog: inspect `marketguard_cases_by_status`, filter old `NEW`/`REVIEWING` cases, and review per-rule dismissed ratios before changing any threshold. The application never tunes thresholds automatically.
 - Version conflict: reload the case detail and reapply the operator decision to the new version; never bypass optimistic locking.
 - Disk growth: snapshots retain one hour by default. Define environment-specific anomaly/audit retention before long-running production use.
+- Institutional-flow polling is configured with `collector.institutional-flow-poll-interval-ms`; its six-hour directional cooldown is independent from the per-stock cooldown.
 
 ## Shutdown
 

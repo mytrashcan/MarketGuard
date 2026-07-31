@@ -35,6 +35,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -112,7 +113,7 @@ class PriceSnapshotRepositoryIntegrationTest {
         assertThat(repository.findByStockCodeOrderByCapturedAtDesc("005930", Limit.of(10))).hasSize(1);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from flyway_schema_history where success = true", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(5);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_name = 'anomaly_cooldown'",
                 Integer.class)).isEqualTo(1);
@@ -218,6 +219,35 @@ class PriceSnapshotRepositoryIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "update surveillance_case set score = 101 where id = ?", grouped.getId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void persistsSupportedMarketInstitutionalSignalsAndRejectsOtherSymbols() {
+        Instant detectedAt = Instant.parse("2026-07-31T06:20:00Z");
+        Anomaly anomaly = new Anomaly(
+                "KOSPI", RuleType.INSTITUTIONAL_NET_BUY_SURGE, Severity.WARNING,
+                "코스피 시장 기관 순매수 급증", detectedAt);
+
+        assertThat(anomalyRecordingService.recordIfEligible(anomaly, Duration.ofHours(6))).isPresent();
+
+        assertThat(caseRepository.findFirstByStockCodeOrderByLastDetectedAtDesc("KOSPI"))
+                .get()
+                .satisfies(value -> {
+                    assertThat(value.getStockName()).isEqualTo("코스피 시장");
+                    assertThat(value.getSignalCount()).isEqualTo(1);
+                });
+        assertThat(anomalyRepository.findAll()).singleElement().satisfies(value -> {
+            assertThat(value.getStockCode()).isEqualTo("KOSPI");
+            assertThat(value.getRuleType()).isEqualTo(RuleType.INSTITUTIONAL_NET_BUY_SURGE);
+        });
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                insert into anomaly_cooldown(stock_code, rule_type, last_emitted_at)
+                values (?, ?, ?)
+                """,
+                "SYNTHETIC", RuleType.INSTITUTIONAL_NET_BUY_SURGE.name(), detectedAt))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseInstanceOf(java.sql.SQLException.class);
     }
 
     private static Anomaly anomaly(Instant detectedAt) {

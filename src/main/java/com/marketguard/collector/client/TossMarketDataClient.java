@@ -2,7 +2,10 @@ package com.marketguard.collector.client;
 
 import com.marketguard.collector.MarketDay;
 import com.marketguard.collector.MarketRankingQuote;
+import com.marketguard.collector.MarketRankingType;
 import com.marketguard.detection.model.Candle;
+import com.marketguard.detection.model.InstitutionalTradingRecord;
+import com.marketguard.detection.model.MarketInstrument;
 import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.OrderbookSnapshot;
 import com.marketguard.detection.model.PriceLimit;
@@ -43,6 +46,7 @@ public class TossMarketDataClient {
     private final RateLimiter stockRateLimiter;
     private final RateLimiter marketInfoRateLimiter;
     private final RateLimiter rankingRateLimiter;
+    private final RateLimiter marketIndicatorRateLimiter;
 
     public TossMarketDataClient(
             @Qualifier("tossApiClient") RestClient tossApiClient,
@@ -52,7 +56,8 @@ public class TossMarketDataClient {
             @Qualifier("tossChartRateLimiter") RateLimiter chartRateLimiter,
             @Qualifier("tossStockRateLimiter") RateLimiter stockRateLimiter,
             @Qualifier("tossMarketInfoRateLimiter") RateLimiter marketInfoRateLimiter,
-            @Qualifier("tossRankingRateLimiter") RateLimiter rankingRateLimiter) {
+            @Qualifier("tossRankingRateLimiter") RateLimiter rankingRateLimiter,
+            @Qualifier("tossMarketIndicatorRateLimiter") RateLimiter marketIndicatorRateLimiter) {
         this.tossApiClient = tossApiClient;
         this.circuitBreaker = tossCircuitBreaker;
         this.retry = tossRetry;
@@ -61,6 +66,7 @@ public class TossMarketDataClient {
         this.stockRateLimiter = stockRateLimiter;
         this.marketInfoRateLimiter = marketInfoRateLimiter;
         this.rankingRateLimiter = rankingRateLimiter;
+        this.marketIndicatorRateLimiter = marketIndicatorRateLimiter;
     }
 
     /** 재시도(inner) → 서킷브레이커(outer) 순으로 외부 호출을 보호한다. */
@@ -167,19 +173,50 @@ public class TossMarketDataClient {
         return response == null ? List.of() : response.toDomain();
     }
 
-    /** 국내 시장 실시간 거래량 상위 100종목의 공식 전일 기준가와 거래량을 조회한다. */
-    public List<MarketRankingQuote> fetchKrRealtimeVolumeRanking() {
+    /** 국내 시장 랭킹을 조회한다. 상승·하락 랭킹은 토스 제약에 맞춰 1일 기준을 사용한다. */
+    public List<MarketRankingQuote> fetchKrRanking(MarketRankingType type, int count) {
+        Objects.requireNonNull(type, "type must not be null");
+        if (count < 1 || count > 100) {
+            throw new IllegalArgumentException("count must be between 1 and 100");
+        }
         RankingResponse response = call(rankingRateLimiter, () -> tossApiClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/v1/rankings")
-                        .queryParam("type", "MARKET_TRADING_VOLUME")
+                        .queryParam("type", type.name())
                         .queryParam("marketCountry", "KR")
-                        .queryParam("duration", "realtime")
-                        .queryParam("count", 100)
+                        .queryParam("duration", type.duration())
+                        .queryParam("count", count)
                         .build())
                 .retrieve()
                 .body(RankingResponse.class));
         return response == null ? List.of() : response.toDomain();
+    }
+
+    /**
+     * KOSPI or KOSDAQ market-wide institutional buy/sell amounts, newest daily record first.
+     * The current-day record is provisional until the upstream finishes its end-of-day update.
+     */
+    public List<InstitutionalTradingRecord> fetchInstitutionalTrading(String marketSymbol, int count) {
+        if (!MarketInstrument.isMarket(marketSymbol)) {
+            throw new IllegalArgumentException("marketSymbol must be KOSPI or KOSDAQ");
+        }
+        if (count < 1 || count > 100) {
+            throw new IllegalArgumentException("count must be between 1 and 100");
+        }
+        InvestorTradingResponse response = call(marketIndicatorRateLimiter, () -> tossApiClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/v1/market-indicators/{symbol}/investor-trading")
+                        .queryParam("interval", "1d")
+                        .queryParam("count", count)
+                        .build(marketSymbol))
+                .retrieve()
+                .body(InvestorTradingResponse.class));
+        return response == null ? List.of() : response.toDomain(marketSymbol);
+    }
+
+    /** 국내 시장 실시간 거래량 상위 100종목의 공식 전일 기준가와 거래량을 조회한다. */
+    public List<MarketRankingQuote> fetchKrRealtimeVolumeRanking() {
+        return fetchKrRanking(MarketRankingType.MARKET_TRADING_VOLUME, 100);
     }
 
     /** 종목 기본 정보에서 공식 한글 종목명을 배치 조회한다. */

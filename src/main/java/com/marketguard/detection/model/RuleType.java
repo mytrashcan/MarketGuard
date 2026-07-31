@@ -9,7 +9,9 @@ public enum RuleType {
     VOLUME_SURGE("거래량 급증"),
     ORDERBOOK_IMBALANCE("호가 불균형"),
     INVESTMENT_WARNING("투자경고 종목"),
-    PRICE_VOLUME_SURGE("가격·거래량 동시 급증");
+    PRICE_VOLUME_SURGE("가격·거래량 동시 급증"),
+    INSTITUTIONAL_NET_BUY_SURGE("기관 순매수 급증"),
+    INSTITUTIONAL_NET_SELL_SURGE("기관 순매도 급증");
 
     private final String description;
 

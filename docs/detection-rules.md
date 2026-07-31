@@ -57,6 +57,19 @@ All rules produce review signals, not conclusions about market abuse or investme
 - Score: one configurable contribution; component rules may also contribute, with the total capped at 100.
 - False positives: market/sector movement and confirmed public events. Review those before escalation.
 
+## `INSTITUTIONAL_NET_BUY_SURGE` / `INSTITUTIONAL_NET_SELL_SURGE`
+
+- Purpose: find unusually large institutional net buying or selling across the KOSPI or KOSDAQ market.
+- Input: Toss Open API daily KRX investor-trading records. The institution total includes seven reported categories: financial investment, insurance, trust, private equity funds, banks, other financial institutions, and pension funds.
+- Formula: `institution buy amount - institution sell amount`.
+- Baseline: median absolute institutional net amount over the configured preceding trading days.
+- Boundary: the latest absolute net amount must be at least both the configured baseline multiplier and the configured absolute KRW floor.
+- Insufficient data: no signal is emitted without the configured minimum number of preceding records, a positive baseline, a current-day record, and a recent `updatedAt`.
+- Direction: a positive result emits `INSTITUTIONAL_NET_BUY_SURGE`; a negative result emits `INSTITUTIONAL_NET_SELL_SURGE`.
+- Provisional data: the current-day record may change until the upstream completes its end-of-day update. The evidence and dashboard label it as provisional.
+- Scope limitation: this is a whole-market signal. It cannot identify an individual stock, institution, account, beneficial owner, or trading intent.
+- Check: confirm the final end-of-day value and compare the market index and foreign/individual flows.
+
 ## Evaluated but deferred patterns
 
 Repeated direction reversal, persistent orderbook imbalance, price/orderbook divergence, and close-concentrated movement require durable multi-observation state and more explicit auction/session data. They are documented extension candidates rather than guessed from one snapshot. Same-time baselines have a tested pure calculator with five-minute buckets, mean/median/standard deviation, minimum samples, and fallback; production storage waits for enough multi-day history.

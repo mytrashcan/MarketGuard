@@ -41,7 +41,8 @@ public class CaseController {
             @RequestParam(required = false) CaseStatus status,
             @RequestParam(required = false) RuleType ruleType,
             @RequestParam(required = false) Severity severity,
-            @RequestParam(required = false) @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam(required = false)
+            @Pattern(regexp = "\\d{6}|KOSPI|KOSDAQ") String stockCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(required = false) @Min(0) @Max(100) Integer minimumScore,
