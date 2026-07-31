@@ -22,6 +22,7 @@ public class TossResilienceObservability {
             @Qualifier("tossChartRateLimiter") RateLimiter chartRateLimiter,
             @Qualifier("tossStockRateLimiter") RateLimiter stockRateLimiter,
             @Qualifier("tossMarketInfoRateLimiter") RateLimiter marketInfoRateLimiter,
+            @Qualifier("tossMarketIndicatorRateLimiter") RateLimiter marketIndicatorRateLimiter,
             @Qualifier("tossAuthRateLimiter") RateLimiter authRateLimiter) {
         observeRetry(registry, "market", marketRetry);
         observeRetry(registry, "auth", authRetry);
@@ -31,6 +32,7 @@ public class TossResilienceObservability {
         observeRateLimit(registry, "chart", chartRateLimiter);
         observeRateLimit(registry, "stock", stockRateLimiter);
         observeRateLimit(registry, "market_info", marketInfoRateLimiter);
+        observeRateLimit(registry, "market_indicator", marketIndicatorRateLimiter);
         observeRateLimit(registry, "auth", authRateLimiter);
     }
 

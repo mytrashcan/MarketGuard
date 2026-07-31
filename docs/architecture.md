@@ -34,6 +34,7 @@ Dependencies point inward. `detection` contains values, rule contracts, rule imp
 ## Consistency model
 
 - Price snapshots and anomaly records are durable in PostgreSQL.
+- Market-wide institutional-flow polling is isolated from per-stock scans and reuses the same durable anomaly, case, cooldown, and notification pipeline.
 - Cooldown is durable and concurrency-safe across processes sharing one database.
 - Case grouping uses `case_group_lock`; review writes use JPA `@Version`. These controls solve different races and are not interchangeable.
 - An active case groups signals at most ten minutes apart. Inactive cases close automatically, and a recently closed case may reactivate within the configured window.

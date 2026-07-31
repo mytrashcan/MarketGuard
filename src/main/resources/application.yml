@@ -95,6 +95,7 @@ toss:
 collector:
   enabled: ${COLLECTOR_ENABLED:false}
   poll-interval-ms: 30000        # 전 종목 가격 스캔 주기(ms). 유니버스가 크면 늘리세요(예: 60000).
+  institutional-flow-poll-interval-ms: ${INSTITUTIONAL_FLOW_POLL_INTERVAL_MS:300000}
 
 # 스캔 대상 종목 유니버스
 scan:
@@ -134,6 +135,13 @@ detection:
   volume-surge:
     multiplier: 3.0          # 직전 봉 평균 거래량 대비 N배 이상이면 이상
     lookback: 20
+  institutional-flow:
+    multiplier: 3.0          # 직전 기관 순매수 절대값 중앙값 대비 N배
+    lookback: 20             # 비교할 직전 거래일 수
+    minimum-samples: 5       # 이보다 이력이 적으면 탐지하지 않음
+    minimum-net-amount: 100000000000  # 시장 전체 기관 순매수/순매도 최소 1,000억원
+    max-age: 30m             # 마지막 갱신이 오래된 잠정치는 탐지하지 않음
+    cooldown: 6h             # 같은 시장·방향 알림은 장중 최대 한 번
 
 # 동일 종목 신호를 검토 가능한 사건으로 묶고 설명 가능한 관심도 점수를 계산한다.
 surveillance:
@@ -152,6 +160,8 @@ surveillance:
     PRICE_LIMIT: 15
     INVESTMENT_WARNING: 15
     PRICE_VOLUME_SURGE: 35
+    INSTITUTIONAL_NET_BUY_SURGE: 20
+    INSTITUTIONAL_NET_SELL_SURGE: 20
 
 logging:
   level:

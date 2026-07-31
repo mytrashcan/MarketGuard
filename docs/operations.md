@@ -97,6 +97,7 @@ Migrations are forward-only. Application rollback is safe only when the older bi
 - Case backlog: inspect `marketguard_cases_by_status`, filter old `NEW`/`REVIEWING` cases, and review per-rule dismissed ratios before changing any threshold. The application never tunes thresholds automatically.
 - Version conflict: reload the case detail and reapply the operator decision to the new version; never bypass optimistic locking.
 - Disk growth: snapshots retain one hour by default. Define environment-specific anomaly/audit retention before long-running production use.
+- Institutional-flow polling is configured with `collector.institutional-flow-poll-interval-ms`; its six-hour directional cooldown is independent from the per-stock cooldown.
 
 ## Shutdown
 

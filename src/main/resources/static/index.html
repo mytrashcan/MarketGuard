@@ -482,7 +482,9 @@
     const RULE_LABELS = {
         PRICE_LIMIT: "가격제한폭", PRICE_SPIKE: "가격 급변동",
         VOLUME_SURGE: "거래량 급증", ORDERBOOK_IMBALANCE: "호가 불균형", INVESTMENT_WARNING: "투자경고",
-        PRICE_VOLUME_SURGE: "가격·거래량 동시 급증"
+        PRICE_VOLUME_SURGE: "가격·거래량 동시 급증",
+        INSTITUTIONAL_NET_BUY_SURGE: "기관 순매수 급증",
+        INSTITUTIONAL_NET_SELL_SURGE: "기관 순매도 급증"
     };
     const STATUS_LABELS = {NEW:"신규", REVIEWING:"검토 중", WATCHING:"관찰 중", DISMISSED:"기각",
         ESCALATED:"상위 검토", CLOSED:"종결"};
@@ -676,6 +678,11 @@
         return new Date(latestObservedAt + 60 * 60 * 1000).toISOString();
     }
     async function loadCaseChart(detail) {
+        if (detail.stockCode === "KOSPI" || detail.stockCode === "KOSDAQ") {
+            const el = document.getElementById("caseChart");
+            if (el) el.innerHTML = '<div class="empty">시장 전체 기관 수급 신호이므로 개별 종목 차트를 표시하지 않습니다.</div>';
+            return;
+        }
         try {
             const before = caseChartBefore(detail);
             const contextUrl = `/api/stocks/${detail.stockCode}/context?count=120` +

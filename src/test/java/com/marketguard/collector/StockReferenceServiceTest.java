@@ -40,4 +40,17 @@ class StockReferenceServiceTest {
         assertThat(service.nameOf("000660")).isEqualTo("SK하이닉스");
         verify(marketDataClient).fetchStockNames(List.of("000660", "005930"));
     }
+
+    @Test
+    void resolvesSupportedMarketIndicatorNamesWithoutAnUpstreamLookup() {
+        StockReferenceService service = new StockReferenceService(
+                new TossApiProperties(
+                        "https://example.test", "https://example.test/oauth2/token",
+                        "", "", List.of()),
+                marketDataClient,
+                symbolUniverse);
+
+        assertThat(service.nameOf("KOSPI")).isEqualTo("코스피 시장");
+        assertThat(service.nameOf("KOSDAQ")).isEqualTo("코스닥 시장");
+    }
 }
