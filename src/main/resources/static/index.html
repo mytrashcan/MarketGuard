@@ -292,14 +292,12 @@
         if (interval === "1d") return new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
         return Math.floor(ms / 1000) + 9 * 3600;
     }
-    function chgHtml(pct, closed, source) {
+    function chgHtml(pct, closed) {
         const tag = closed ? ' <span class="ctag">종가</span>' : "";
-        const sourceTag = source === "TOSS_RANKING" ? ' <span class="ctag">토스 공식</span>'
-            : source === "UNADJUSTED_DAILY_CANDLES" ? ' <span class="ctag">일봉 계산</span>' : "";
-        if (pct == null) return `<span class="flat">데이터 없음</span>${tag}${sourceTag}`;
+        if (pct == null) return `<span class="flat">데이터 없음</span>${tag}`;
         const cls = pct > 0 ? "up" : (pct < 0 ? "down" : "flat");
         const arrow = pct > 0 ? "▲" : (pct < 0 ? "▼" : "–");
-        return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>${tag}${sourceTag}`;
+        return `<span class="${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</span>${tag}`;
     }
     function ratioBar(bid, ask, status) {
         const tot = (bid || 0) + (ask || 0);
@@ -334,7 +332,7 @@
                 `<td class="rank">${i + 1}</td>` +
                 `<td><span class="nm">${escapeHtml(nm)}</span> <span class="cd">${escapeHtml(it.code)}</span></td>` +
                 `<td class="num">${fmtKRW(it.price)}</td>` +
-                `<td class="num" title="${basis}">${chgHtml(it.changePercent, it.closed, it.changeSource)}</td>` +
+                `<td class="num" title="${basis}">${chgHtml(it.changePercent, it.closed)}</td>` +
                 `<td class="num">${fmtVolume(it.volume)}</td>` +
                 `<td>${ratioBar(it.bidVolume, it.askVolume, it.orderbookStatus)}</td>` +
                 `<td class="sector">${SECTORS[it.code] || "-"}</td></tr>`;
@@ -366,7 +364,7 @@
         document.getElementById("sideNm").textContent = it.name || it.code;
         document.getElementById("sideCd").textContent = it.code;
         document.getElementById("sidePx").textContent = fmtKRW(it.price);
-        document.getElementById("sideChg").innerHTML = chgHtml(it.changePercent, it.closed, it.changeSource);
+        document.getElementById("sideChg").innerHTML = chgHtml(it.changePercent, it.closed);
     }
 
     // 우측 미니 차트(일봉)
