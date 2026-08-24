@@ -15,9 +15,11 @@ public record MarketGuardSecurityProperties(
         String password,
         String operatorToken,
         List<String> allowedOrigins,
-        @Min(1) @Max(10_000) int requestsPerMinute
+        @Min(1) @Max(10_000) int requestsPerMinute,
+        @Min(0) @Max(8) int trustedProxies
 ) {
     public MarketGuardSecurityProperties {
         allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
+        trustedProxies = Math.max(trustedProxies, 0);
     }
 }

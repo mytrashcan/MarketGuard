@@ -11,27 +11,36 @@ import com.marketguard.detection.model.MarketContextTags;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * 단기 가격 급변동 탐지: 현재가가 직전 평균가 대비 thresholdPercent 이상 벗어나면 이상 신호로 본다.
  * 임계치의 2배를 넘으면 CRITICAL로 분류한다.
+ * maxAge보다 오래된 스냅샷(직전 세션 잔여 데이터 등)은 평균 계산에서 제외해
+ * 장 시작 시점의 스테일 오탐을 방지한다(VolumeSurgeRule의 스테일 가드와 동일한 취지).
  */
 public class PriceSpikeRule implements DetectionRule {
 
     private final BigDecimal thresholdPercent;
     private final int lookback;
+    private final Duration maxAge;
 
-    public PriceSpikeRule(BigDecimal thresholdPercent, int lookback) {
+    public PriceSpikeRule(BigDecimal thresholdPercent, int lookback, Duration maxAge) {
         if (thresholdPercent == null || thresholdPercent.signum() <= 0) {
             throw new IllegalArgumentException("thresholdPercent must be positive");
         }
         if (lookback < 1 || lookback > 200) {
             throw new IllegalArgumentException("lookback must be between 1 and 200");
         }
+        if (maxAge == null || maxAge.isZero() || maxAge.isNegative()) {
+            throw new IllegalArgumentException("maxAge must be positive");
+        }
         this.thresholdPercent = thresholdPercent;
         this.lookback = lookback;
+        this.maxAge = maxAge;
     }
 
     @Override
@@ -41,11 +50,14 @@ public class PriceSpikeRule implements DetectionRule {
 
     @Override
     public Optional<Anomaly> evaluate(DetectionContext context) {
-        List<MarketPrice> recent = context.recent();
-        if (recent.isEmpty()) {
-            return Optional.empty();   // 비교할 과거 데이터가 아직 없음
+        Instant cutoff = context.evaluationTime().minus(maxAge);
+        List<MarketPrice> fresh = context.recent().stream()
+                .filter(price -> price.capturedAt() != null && !price.capturedAt().isBefore(cutoff))
+                .toList();
+        if (fresh.isEmpty()) {
+            return Optional.empty();   // 비교할 과거 데이터가 아직 없음(또는 전부 스테일)
         }
-        BigDecimal average = DecimalMath.average(recent.stream()
+        BigDecimal average = DecimalMath.average(fresh.stream()
                 .limit(lookback)
                 .map(MarketPrice::price)
                 .toList());
@@ -73,7 +85,7 @@ public class PriceSpikeRule implements DetectionRule {
                             "최근 가격 흐름과 비교해 주가가 짧은 시간에 빠르게 움직였습니다. "
                                     + "시장 전체 움직임이나 공개된 기업 이벤트의 영향인지 추가 확인이 필요합니다.")
                     .values(changePercent, BigDecimal.ZERO, threshold, thresholdRatio, "%")
-                    .lookback("최근 " + Math.min(recent.size(), lookback) + "개 가격 스냅샷 평균")
+                    .lookback("최근 " + Math.min(fresh.size(), lookback) + "개 가격 스냅샷 평균")
                     .direction(direction)
                     .contextTags(MarketContextTags.at(context.evaluationTime(),
                             direction == Direction.UP ? "가격 상승" : "가격 하락"))

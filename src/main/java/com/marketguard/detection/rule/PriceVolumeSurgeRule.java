@@ -25,9 +25,11 @@ public class PriceVolumeSurgeRule implements DetectionRule {
     private final int priceLookback;
     private final BigDecimal volumeMultiplier;
     private final int volumeLookback;
+    private final Duration maxPriceSnapshotAge;
 
     public PriceVolumeSurgeRule(BigDecimal priceThresholdPercent, int priceLookback,
-                                BigDecimal volumeMultiplier, int volumeLookback) {
+                                BigDecimal volumeMultiplier, int volumeLookback,
+                                Duration maxPriceSnapshotAge) {
         if (priceThresholdPercent == null || priceThresholdPercent.signum() <= 0) {
             throw new IllegalArgumentException("priceThresholdPercent must be positive");
         }
@@ -37,10 +39,14 @@ public class PriceVolumeSurgeRule implements DetectionRule {
         if (priceLookback < 1 || priceLookback > 200 || volumeLookback < 1 || volumeLookback > 200) {
             throw new IllegalArgumentException("lookbacks must be between 1 and 200");
         }
+        if (maxPriceSnapshotAge == null || maxPriceSnapshotAge.isZero() || maxPriceSnapshotAge.isNegative()) {
+            throw new IllegalArgumentException("maxPriceSnapshotAge must be positive");
+        }
         this.priceThresholdPercent = priceThresholdPercent;
         this.priceLookback = priceLookback;
         this.volumeMultiplier = volumeMultiplier;
         this.volumeLookback = volumeLookback;
+        this.maxPriceSnapshotAge = maxPriceSnapshotAge;
     }
 
     @Override
@@ -50,10 +56,14 @@ public class PriceVolumeSurgeRule implements DetectionRule {
 
     @Override
     public Optional<Anomaly> evaluate(DetectionContext context) {
-        if (context.recent().isEmpty() || context.candles().size() < 2) {
+        java.time.Instant cutoff = context.evaluationTime().minus(maxPriceSnapshotAge);
+        List<MarketPrice> fresh = context.recent().stream()
+                .filter(price -> price.capturedAt() != null && !price.capturedAt().isBefore(cutoff))
+                .toList();
+        if (fresh.isEmpty() || context.candles().size() < 2) {
             return Optional.empty();
         }
-        BigDecimal averagePrice = DecimalMath.average(context.recent().stream()
+        BigDecimal averagePrice = DecimalMath.average(fresh.stream()
                 .limit(priceLookback).map(MarketPrice::price).toList());
         BigDecimal priceChange = DecimalMath.percentageChange(context.current().price(), averagePrice);
         if (priceChange.abs().compareTo(priceThresholdPercent) < 0) {

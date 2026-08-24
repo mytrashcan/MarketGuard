@@ -36,7 +36,7 @@ class ProductionSafetyValidatorTest {
     @Test
     void rejectsWildcardOrigins() {
         MarketGuardSecurityProperties security =
-                new MarketGuardSecurityProperties(true, "operator", "a-secure-password", "", List.of("*"), 120);
+                new MarketGuardSecurityProperties(true, "operator", "a-secure-password", "", List.of("*"), 120, 0);
 
         assertThatThrownBy(validator(new MockEnvironment(), security, disabledCollector(), VALID_TOSS)::validate)
                 .isInstanceOf(IllegalStateException.class)
@@ -48,7 +48,7 @@ class ProductionSafetyValidatorTest {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("prod");
         MarketGuardSecurityProperties security = new MarketGuardSecurityProperties(
-                true, "operator", "a-secure-password", "", List.of("https://marketguard.example"), 120);
+                true, "operator", "a-secure-password", "", List.of("https://marketguard.example"), 120, 0);
 
         assertThatCode(validator(environment, security, disabledCollector(), VALID_TOSS)::validate)
                 .doesNotThrowAnyException();
@@ -62,7 +62,7 @@ class ProductionSafetyValidatorTest {
     }
 
     private static MarketGuardSecurityProperties disabledSecurity() {
-        return new MarketGuardSecurityProperties(false, "", "", "", List.of(), 120);
+        return new MarketGuardSecurityProperties(false, "", "", "", List.of(), 120, 0);
     }
 
     private static CollectorProperties disabledCollector() {

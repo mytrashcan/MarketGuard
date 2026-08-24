@@ -23,7 +23,7 @@ class SecurityConfigTest {
 
     private static void assertCsrfCookie(boolean securityEnabled, boolean expectedSecure) {
         MarketGuardSecurityProperties properties =
-                new MarketGuardSecurityProperties(securityEnabled, "", "", "", List.of(), 120);
+                new MarketGuardSecurityProperties(securityEnabled, "", "", "", List.of(), 120, 0);
         CookieCsrfTokenRepository repository = SecurityConfig.csrfTokenRepository(properties);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/csrf");
         request.setSecure(true);

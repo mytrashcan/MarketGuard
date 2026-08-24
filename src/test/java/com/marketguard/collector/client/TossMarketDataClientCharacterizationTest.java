@@ -61,6 +61,43 @@ class TossMarketDataClientCharacterizationTest {
     }
 
     @Test
+    void filtersInvalidSymbolsInsteadOfFailingTheWholeBatch() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+        server.expect(requestTo(BASE_URL + "/api/v1/prices?symbols=005930,005931"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        // ETN/ETF-style and malformed symbols are skipped with a warning, not a wholesale failure.
+        assertThat(client.fetchPrices(List.of("BAD!", "005930", "0197W0", "005931"))).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void returnsEmptyWithoutHttpCallWhenEverySymbolIsInvalid() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+
+        assertThat(client.fetchPrices(List.of("BAD!", "X"))).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void stillRejectsBatchesLargerThanTwoHundredValidSymbols() {
+        RestClient.Builder builder = configuredBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        TossMarketDataClient client = client(builder);
+
+        List<String> tooMany = java.util.stream.IntStream.rangeClosed(1, 201)
+                .mapToObj(i -> String.format("%06d", i))
+                .toList();
+        assertThatThrownBy(() -> client.fetchPrices(tooMany))
+                .isInstanceOf(IllegalArgumentException.class);
+        server.verify();
+    }
+
+    @Test
     void returnsAnEmptyListForAnEmptySuccessfulEnvelope() {
         RestClient.Builder builder = configuredBuilder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

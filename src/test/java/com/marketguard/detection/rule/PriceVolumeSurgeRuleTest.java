@@ -8,6 +8,7 @@ import com.marketguard.detection.model.DetectionContext;
 import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.RuleType;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class PriceVolumeSurgeRuleTest {
 
     private final PriceVolumeSurgeRule rule = new PriceVolumeSurgeRule(
-            new BigDecimal("3"), 3, new BigDecimal("3"), 3);
+            new BigDecimal("3"), 3, new BigDecimal("3"), 3, Duration.ofMinutes(30));
     private final Instant now = Instant.parse("2026-07-15T01:00:00Z");
 
     @Test
@@ -33,6 +34,21 @@ class PriceVolumeSurgeRuleTest {
     void doesNotDetectWhenOnlyOneComponentCrosses() {
         assertThat(rule.evaluate(context("102", 400))).isEmpty();
         assertThat(rule.evaluate(context("104", 200))).isEmpty();
+    }
+
+    @Test
+    void ignoresStalePriceSnapshotsWhenAveraging() {
+        MarketPrice current = new MarketPrice("005930", new BigDecimal("104"), now);
+        // 모든 직전 스냅샷이 maxAge(30분)보다 오래됨 → 가격 평균 불가, 탐지하지 않음
+        List<MarketPrice> stale = List.of(
+                new MarketPrice("005930", new BigDecimal("100"), now.minus(Duration.ofHours(1))),
+                new MarketPrice("005930", new BigDecimal("100"), now.minus(Duration.ofHours(2))));
+        List<Candle> candles = List.of(
+                candle(now.minusSeconds(180), 100), candle(now.minusSeconds(120), 100),
+                candle(now.minusSeconds(60), 400));
+        DetectionContext context = new DetectionContext(current, stale, null, null, candles, now);
+
+        assertThat(rule.evaluate(context)).isEmpty();
     }
 
     private DetectionContext context(String price, long latestVolume) {
