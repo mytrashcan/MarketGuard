@@ -54,6 +54,7 @@ marketguard:
       - http://localhost:5050
       - http://127.0.0.1:5050
     requests-per-minute: ${MARKETGUARD_REQUESTS_PER_MINUTE:120}
+    trusted-proxies: ${MARKETGUARD_TRUSTED_PROXIES:0}   # 역방향 프록시 대수(X-Forwarded-For 신뢰). 0이면 소켓 주소 사용.
 
 # 토스증권 Open API 연동 설정 (시크릿은 환경변수로 주입)
 toss:
@@ -128,6 +129,7 @@ detection:
   price-spike:
     threshold-percent: 3.0   # 직전 평균가 대비 ±N% 이상 변동이면 이상
     lookback: 20             # 평균 계산에 사용할 직전 스냅샷 수
+    max-age: 30m             # 이보다 오래된 스냅샷(직전 세션 잔여 등)은 평균에서 제외해 장 시작 오탐 방지
   price-limit:
     proximity-percent: 1.0   # 상·하한가 1% 이내 근접 시 경고(0이면 도달만 탐지)
   orderbook-imbalance:

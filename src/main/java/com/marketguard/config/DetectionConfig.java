@@ -20,7 +20,7 @@ public class DetectionConfig {
 
     @Bean
     DetectionRule priceSpikeRule(PriceSpikeProperties properties) {
-        return new PriceSpikeRule(properties.thresholdPercent(), properties.lookback());
+        return new PriceSpikeRule(properties.thresholdPercent(), properties.lookback(), properties.maxAge());
     }
 
     @Bean
@@ -47,7 +47,7 @@ public class DetectionConfig {
     DetectionRule priceVolumeSurgeRule(
             PriceSpikeProperties price, VolumeSurgeProperties volume) {
         return new PriceVolumeSurgeRule(price.thresholdPercent(), price.lookback(),
-                volume.multiplier(), volume.lookback());
+                volume.multiplier(), volume.lookback(), price.maxAge());
     }
 
     @Bean

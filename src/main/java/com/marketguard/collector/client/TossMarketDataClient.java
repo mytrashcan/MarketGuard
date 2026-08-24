@@ -36,6 +36,9 @@ import org.springframework.web.client.RestClient;
 public class TossMarketDataClient {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(TossMarketDataClient.class);
+    private static final int MAX_BATCH_SIZE = 200;
     private static final Pattern KRX_SYMBOL = Pattern.compile("\\d{6}");
     /** 종목명 조회용: 6자리 숫자 주식코드 또는 ETN/ETF처럼 4자리 숫자 + 2자리 영숫자(예: 0197W0). */
     private static final Pattern NAME_LOOKUP_SYMBOL = Pattern.compile("\\d{6}|\\d{4}[A-Z0-9]{2}");
@@ -77,15 +80,28 @@ public class TossMarketDataClient {
         return circuitBreaker.executeSupplier(Retry.decorateSupplier(retry, rateLimited));
     }
 
-    /** 여러 종목의 현재가를 한 번에 배치 조회한다. GET /api/v1/prices?symbols=... */
+    /**
+     * 여러 종목의 현재가를 한 번에 배치 조회한다. GET /api/v1/prices?symbols=...
+     * 유효하지 않은 종목코드는 전체 배치를 실패시키지 않고 건너뛰고 경고 로그를 남긴다.
+     */
     public List<MarketPrice> fetchPrices(List<String> symbols) {
         if (symbols == null || symbols.isEmpty()) {
             return List.of();
         }
-        if (symbols.size() > 200 || symbols.stream().anyMatch(symbol -> !isValidSymbol(symbol))) {
-            throw new IllegalArgumentException("symbols must contain 1 to 200 six-digit KRX symbols");
+        List<String> valid = symbols.stream()
+                .filter(TossMarketDataClient::isValidSymbol)
+                .toList();
+        if (valid.size() < symbols.size()) {
+            LOG.warn("Skipping {} invalid symbol(s) in price batch lookup", symbols.size() - valid.size());
         }
-        String symbolsParam = String.join(",", symbols);
+        if (valid.isEmpty()) {
+            return List.of();
+        }
+        if (valid.size() > MAX_BATCH_SIZE) {
+            throw new IllegalArgumentException("symbols must contain up to " + MAX_BATCH_SIZE
+                    + " six-digit KRX symbols");
+        }
+        String symbolsParam = String.join(",", valid);
 
         PricesResponse response = call(marketDataRateLimiter, () -> tossApiClient.get()
                 .uri(uriBuilder -> uriBuilder

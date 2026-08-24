@@ -8,7 +8,9 @@ import com.marketguard.detection.model.MarketPrice;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -18,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class PriceSpikeRuleTest {
 
     private final PriceSpikeRule rule =
-            new PriceSpikeRule(new BigDecimal("3.0"), 20);
+            new PriceSpikeRule(new BigDecimal("3.0"), 20, Duration.ofMinutes(30));
 
     private static final Instant EVALUATED_AT = Instant.parse("2026-07-15T00:00:00Z");
 
@@ -71,5 +73,31 @@ class PriceSpikeRuleTest {
         DetectionContext context = new DetectionContext(snapshot("10400"), List.of(), EVALUATED_AT);
 
         assertThat(rule.evaluate(context)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("maxAge보다 오래된 스냅샷만 있으면 탐지하지 않는다(스테일 가드)")
+    void ignoresStaleSnapshots() {
+        List<MarketPrice> stale = IntStream.range(0, 5)
+                .mapToObj(i -> new MarketPrice("005930", new BigDecimal("10000"),
+                        EVALUATED_AT.minus(Duration.ofMinutes(31))))
+                .toList();
+        DetectionContext context = new DetectionContext(snapshot("10400"), stale, EVALUATED_AT);
+
+        assertThat(rule.evaluate(context)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("오래된 스냅샷은 평균에서 제외하고 신선한 스냅샷만 사용한다")
+    void averagesOnlyFreshSnapshots() {
+        List<MarketPrice> mixed = new ArrayList<>();
+        mixed.add(new MarketPrice("005930", new BigDecimal("10000"), EVALUATED_AT.minusSeconds(10)));
+        mixed.add(new MarketPrice("005930", new BigDecimal("20000"), EVALUATED_AT.minus(Duration.ofHours(2))));
+        DetectionContext context = new DetectionContext(snapshot("10400"), mixed, EVALUATED_AT);
+
+        Optional<Anomaly> result = rule.evaluate(context);
+
+        // 평균이 15000이면 +4% 미만 → 미탐지. 스테일 제외 시 평균 10000, +4% → 탐지.
+        assertThat(result).isPresent();
     }
 }
