@@ -17,11 +17,15 @@ public record SignalStatRow(
         BigDecimal outcomeBasePrice,
         BigDecimal outcomePrice,
         BigDecimal outcomeChangePercent,
-        Boolean outcomeFollowedDirection
+        Boolean outcomeFollowedDirection,
+        BigDecimal outcomeMarketChangePercent,
+        BigDecimal outcomeExcessChangePercent,
+        Boolean outcomeFollowedAfterMarket
 ) {
     /** 측정 전이면 null. */
     public SignalOutcome outcome() {
         return outcomeStatus == null ? null : new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice,
-                outcomeChangePercent, outcomeFollowedDirection);
+                outcomeChangePercent, outcomeFollowedDirection, outcomeMarketChangePercent,
+                outcomeExcessChangePercent, outcomeFollowedAfterMarket);
     }
 }

@@ -6,6 +6,9 @@ ALTER TABLE anomaly_record
     ADD COLUMN outcome_price NUMERIC(19, 4),
     ADD COLUMN outcome_change_percent NUMERIC(30, 8),
     ADD COLUMN outcome_followed_direction BOOLEAN,
+    ADD COLUMN outcome_market_change_percent NUMERIC(30, 8),
+    ADD COLUMN outcome_excess_change_percent NUMERIC(30, 8),
+    ADD COLUMN outcome_followed_after_market BOOLEAN,
     ADD COLUMN outcome_measured_at TIMESTAMPTZ,
     ADD CONSTRAINT chk_anomaly_outcome_status CHECK (
         outcome_status IS NULL OR outcome_status IN ('MEASURED', 'NO_PRICE_DATA', 'NOT_APPLICABLE')

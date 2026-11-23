@@ -4,15 +4,23 @@ import com.marketguard.detection.model.DecimalMath;
 import com.marketguard.detection.model.Direction;
 import java.math.BigDecimal;
 
-/** 신호 시점과 일정 시간 뒤의 가격으로 결과를 계산한다. */
+/** 신호 시점과 일정 시간 뒤의 가격으로 결과를 계산한다. 시장 기준 변동이 있으면 초과 변동도 계산한다. */
 public final class SignalOutcomeCalculator {
 
     public SignalOutcome measure(Direction direction, BigDecimal basePrice, BigDecimal outcomePrice) {
+        return measure(direction, basePrice, outcomePrice, null);
+    }
+
+    public SignalOutcome measure(Direction direction, BigDecimal basePrice, BigDecimal outcomePrice,
+                                 BigDecimal marketChangePercent) {
         if (basePrice == null || outcomePrice == null || basePrice.signum() <= 0 || outcomePrice.signum() <= 0) {
             return SignalOutcome.noPriceData();
         }
         BigDecimal change = DecimalMath.percentageChange(outcomePrice, basePrice);
-        return new SignalOutcome(OutcomeStatus.MEASURED, basePrice, outcomePrice, change, followed(direction, change));
+        BigDecimal excess = marketChangePercent == null ? null : change.subtract(marketChangePercent);
+        return new SignalOutcome(OutcomeStatus.MEASURED, basePrice, outcomePrice, change,
+                followed(direction, change), marketChangePercent, excess,
+                excess == null ? null : followed(direction, excess));
     }
 
     /** 신호가 예상한 가격 방향. 매수 우위·순매수는 상승, 매도 우위·순매도는 하락으로 본다. 없으면 0. */

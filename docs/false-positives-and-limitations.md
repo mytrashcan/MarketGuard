@@ -14,7 +14,7 @@ Current context availability:
 | KOSPI/KOSDAQ market-wide institutional buy/sell amounts | available from Toss investor-trading data; current-day values are provisional |
 | sector/market relative return | extension point only; aligned history unavailable |
 | same-time historical baseline | calculator tested; production history/cache deferred |
-| post-signal price outcome | measured once at the configured horizon from retained snapshots; not adjusted for market-wide moves |
+| post-signal price outcome | measured once at the configured horizon from retained snapshots, raw and net of the scanned-universe median move |
 | disclosures, news, new listing, split, ex-dividend | external data required |
 
 The main dashboard preserves the Toss ranking order and uses each response's matching price, base price, change rate, volume, and trading amount. The legacy `/api/prices/live` “buy/sell” value is pending bid/ask quantity, not trade-side volume or investor net buying.
@@ -23,4 +23,4 @@ Institutional-flow signals use the KOSPI or KOSDAQ market-wide institution total
 
 Review outcomes are analytics for operator judgment. They do not automatically tune detection thresholds because the sample is biased, labels are subjective, and automated feedback could hide future signals.
 
-Signal outcomes are a sanity check, not proof of usefulness. A follow rate near 50% means a rule does not predict the next move better than chance, but a higher rate can still come from market-wide momentum, because outcomes are not yet compared with the KOSPI/KOSDAQ move over the same window. Signals near the close and market-wide signals have no outcome, which biases the measured sample toward intraday stock signals.
+Signal outcomes are a sanity check, not proof of usefulness. A follow rate near 50% means a rule does not predict the next move better than chance. The market-adjusted rate subtracts the median move of all scanned stocks over the same window, which removes broad momentum but is an equal-weighted proxy, not the KOSPI/KOSDAQ index, and does not remove sector moves. It is only computed when enough stocks were scanned (`outcome.benchmark-minimum-samples`), so watch-list-only deployments get raw outcomes only. Signals near the close and market-wide signals have no outcome, which biases the measured sample toward intraday stock signals. Rates are not tested for statistical significance; the dashboard only withholds a verdict below 20 directional samples.

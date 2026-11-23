@@ -37,6 +37,9 @@ public record AnomalyView(
         OutcomeStatus outcomeStatus,
         BigDecimal outcomeChangePercent,
         Boolean outcomeFollowedDirection,
+        BigDecimal outcomeMarketChangePercent,
+        BigDecimal outcomeExcessChangePercent,
+        Boolean outcomeFollowedAfterMarket,
         Instant outcomeMeasuredAt
 ) {
     static AnomalyView from(AnomalyRecord record, String stockName) {
@@ -48,6 +51,8 @@ public record AnomalyView(
                 record.getValueUnit(), record.getLookbackDescription(), record.getDirection(),
                 record.getContextTags(), record.getRecommendedChecks(), record.getMarketObservedAt(),
                 record.getCaution(), record.getMeasurements(), record.getOutcomeStatus(),
-                record.getOutcomeChangePercent(), record.getOutcomeFollowedDirection(), record.getOutcomeMeasuredAt());
+                record.getOutcomeChangePercent(), record.getOutcomeFollowedDirection(),
+                record.getOutcomeMarketChangePercent(), record.getOutcomeExcessChangePercent(),
+                record.getOutcomeFollowedAfterMarket(), record.getOutcomeMeasuredAt());
     }
 }

@@ -25,7 +25,7 @@ class SignalAnalyticsServiceTest {
     // 2026-07-31 10:00 KST
     private static final Instant NOW = Instant.parse("2026-07-31T01:00:00Z");
     private static final OutcomeProperties OUTCOME =
-            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1));
+            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3);
 
     private final AnomalyRepository repository = mock(AnomalyRepository.class);
     private final SignalAnalyticsService service =
@@ -73,6 +73,9 @@ class SignalAnalyticsServiceTest {
         assertThat(spike.measured()).isEqualTo(2);
         assertThat(spike.followedRatePercent()).isEqualByComparingTo("50");
         assertThat(spike.medianAbsChangePercent()).isEqualByComparingTo("1.00");
+        // +1.5%(상승 신호, 지속) - 시장 0.5% = +1.0% → 여전히 지속, -0.5%(반대) - 0.5% = -1.0% → 반대
+        assertThat(spike.adjustedDirectional()).isEqualTo(2);
+        assertThat(spike.adjustedFollowedRatePercent()).isEqualByComparingTo("50");
         assertThat(view.coverage()).isEqualTo(new SignalAnalyticsView.Coverage(2, 1, 1, 1));
     }
 
@@ -86,6 +89,11 @@ class SignalAnalyticsServiceTest {
         Boolean followed = measured == null ? null : (Boolean) measured[1];
         BigDecimal base = measured == null ? null : new BigDecimal("100");
         BigDecimal outcome = change == null ? null : base.add(change);
-        return new SignalStatRow(rule, severity, code, Instant.parse(at), status, base, outcome, change, followed);
+        BigDecimal market = change == null ? null : new BigDecimal("0.5");
+        BigDecimal excess = change == null ? null : change.subtract(market);
+        Boolean followedAfterMarket = excess == null || excess.signum() == 0 ? null
+                : (excess.signum() > 0) == (followed == change.signum() > 0);
+        return new SignalStatRow(rule, severity, code, Instant.parse(at), status, base, outcome, change, followed,
+                market, excess, followedAfterMarket);
     }
 }

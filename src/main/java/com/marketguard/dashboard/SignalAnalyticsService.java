@@ -71,7 +71,8 @@ public class SignalAnalyticsService {
                             entry.getValue().stream().map(SignalStatRow::outcome).toList());
                     return new SignalAnalyticsView.Rule(entry.getKey(), statistics.signals(), statistics.measured(),
                             statistics.directional(), statistics.followedRatePercent(),
-                            statistics.medianAbsChangePercent());
+                            statistics.medianAbsChangePercent(), statistics.adjustedDirectional(),
+                            statistics.adjustedFollowedRatePercent());
                 })
                 .sorted(Comparator.comparingLong(SignalAnalyticsView.Rule::signals).reversed()
                         .thenComparing(SignalAnalyticsView.Rule::ruleType))

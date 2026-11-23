@@ -128,6 +128,7 @@ outcome:
   horizon: 30m
   match-window: 3m              # 신호·측정 시점에서 이 시간 안의 스냅샷만 가격으로 인정
   measure-interval: 1m
+  benchmark-minimum-samples: 30 # 시장 기준(스캔 종목 변동률 중앙값)에 필요한 최소 종목 수
 
 # 탐지 룰 임계치
 detection:

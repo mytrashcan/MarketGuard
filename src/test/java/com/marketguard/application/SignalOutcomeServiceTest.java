@@ -16,6 +16,7 @@ import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
 import com.marketguard.domain.marketdata.PriceSnapshot;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
+import com.marketguard.domain.marketdata.SnapshotPrice;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -30,7 +31,7 @@ class SignalOutcomeServiceTest {
     private static final Instant SIGNAL_AT = Instant.parse("2026-07-31T01:00:00Z");
     private static final Instant NOW = SIGNAL_AT.plus(Duration.ofMinutes(40));
     private static final OutcomeProperties OUTCOME =
-            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1));
+            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3);
     private static final MaintenanceProperties MAINTENANCE =
             new MaintenanceProperties(Duration.ofMinutes(10), Duration.ofHours(1));
 
@@ -57,6 +58,35 @@ class SignalOutcomeServiceTest {
         assertThat(record.getOutcomeStatus()).isEqualTo(OutcomeStatus.MEASURED);
         assertThat(record.getOutcomeChangePercent()).isEqualByComparingTo("2");
         assertThat(record.getOutcomeMeasuredAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void subtractsTheMedianMoveOfScannedStocksOverTheSameWindow() {
+        AnomalyRecord record = new AnomalyRecord("005930", RuleType.PRICE_SPIKE, Severity.WARNING, "급변동", SIGNAL_AT);
+        Instant target = SIGNAL_AT.plus(Duration.ofMinutes(30));
+        when(anomalies.findTop200ByOutcomeStatusIsNullAndDetectedAtBeforeOrderByDetectedAtAsc(any()))
+                .thenReturn(List.of(record));
+        when(snapshots.findFirstByStockCodeAndCapturedAtBetweenOrderByCapturedAtDesc(eq("005930"), any(), any()))
+                .thenReturn(Optional.of(new PriceSnapshot("005930", new BigDecimal("100"), SIGNAL_AT)));
+        when(snapshots.findFirstByStockCodeAndCapturedAtBetweenOrderByCapturedAtAsc(eq("005930"), any(), any()))
+                .thenReturn(Optional.of(new PriceSnapshot("005930", new BigDecimal("103"), target)));
+        // 시장: 세 종목이 각각 +1%, +2%, +3% → 중앙값 +2%. 종목별로 시작 직전·끝 직후 가격을 쓴다.
+        when(snapshots.findPricesBetween(SIGNAL_AT.minus(Duration.ofMinutes(3)), SIGNAL_AT)).thenReturn(List.of(
+                new SnapshotPrice("A", new BigDecimal("90"), SIGNAL_AT.minusSeconds(60)),
+                new SnapshotPrice("A", new BigDecimal("100"), SIGNAL_AT.minusSeconds(10)),
+                new SnapshotPrice("B", new BigDecimal("100"), SIGNAL_AT),
+                new SnapshotPrice("C", new BigDecimal("100"), SIGNAL_AT)));
+        when(snapshots.findPricesBetween(target, target.plus(Duration.ofMinutes(3)))).thenReturn(List.of(
+                new SnapshotPrice("A", new BigDecimal("101"), target.plusSeconds(10)),
+                new SnapshotPrice("A", new BigDecimal("150"), target.plusSeconds(60)),
+                new SnapshotPrice("B", new BigDecimal("102"), target),
+                new SnapshotPrice("C", new BigDecimal("103"), target)));
+
+        service.measurePending();
+
+        assertThat(record.getOutcomeChangePercent()).isEqualByComparingTo("3");
+        assertThat(record.getOutcomeMarketChangePercent()).isEqualByComparingTo("2");
+        assertThat(record.getOutcomeExcessChangePercent()).isEqualByComparingTo("1");
     }
 
     @Test

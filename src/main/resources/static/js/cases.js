@@ -242,6 +242,8 @@ function signalHtml(signal) {
         `</article>`;
 }
 
+const signedPercent = value => `${Number(value) > 0 ? "+" : ""}${Number(value).toFixed(2)}%`;
+
 /** 신호 후 가격 결과 한 줄. 서버 값은 숫자·열거형만 쓰고 문구는 여기서 만든다. */
 function outcomeText(signal) {
     switch (signal.outcomeStatus) {
@@ -249,7 +251,9 @@ function outcomeText(signal) {
             const change = Number(signal.outcomeChangePercent);
             const direction = signal.outcomeFollowedDirection == null ? ""
                 : signal.outcomeFollowedDirection ? ", 신호 방향 유지" : ", 반대 방향";
-            return `이후 가격 ${change > 0 ? "+" : ""}${change.toFixed(2)}%${direction}`;
+            const market = signal.outcomeMarketChangePercent == null ? ""
+                : ` (시장 ${signedPercent(signal.outcomeMarketChangePercent)}, 초과 ${signedPercent(signal.outcomeExcessChangePercent)})`;
+            return `이후 가격 ${signedPercent(change)}${direction}${market}`;
         }
         case "NO_PRICE_DATA": return "이후 가격 측정 불가";
         case "NOT_APPLICABLE": return "이후 가격 해당 없음";

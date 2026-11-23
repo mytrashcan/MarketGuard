@@ -14,13 +14,17 @@ import java.util.Objects;
  * @param directional         측정된 신호 중 방향 판정이 가능한 신호 수(followedRate의 분모)
  * @param followedRatePercent 방향 판정 가능한 신호 중 신호 방향으로 움직인 비율. 표본이 없으면 null
  * @param medianAbsChangePercent 측정된 변동률 절대값의 중앙값. 표본이 없으면 null
+ * @param adjustedDirectional 시장 기준을 뺀 초과 변동으로 방향 판정이 가능한 신호 수
+ * @param adjustedFollowedRatePercent 초과 변동이 신호 방향과 같은 비율. 표본이 없으면 null
  */
 public record OutcomeStatistics(
         long signals,
         long measured,
         long directional,
         BigDecimal followedRatePercent,
-        BigDecimal medianAbsChangePercent
+        BigDecimal medianAbsChangePercent,
+        long adjustedDirectional,
+        BigDecimal adjustedFollowedRatePercent
 ) {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
@@ -37,12 +41,22 @@ public record OutcomeStatistics(
                 .map(SignalOutcome::followedDirection)
                 .filter(Objects::nonNull)
                 .toList();
-        BigDecimal followedRate = directional.isEmpty() ? null
-                : BigDecimal.valueOf(directional.stream().filter(Boolean::booleanValue).count())
-                        .multiply(ONE_HUNDRED)
-                        .divide(BigDecimal.valueOf(directional.size()), DecimalMath.DISPLAY_SCALE, DecimalMath.ROUNDING_MODE);
-        return new OutcomeStatistics(signals, measured.size(), directional.size(), followedRate,
-                median(measured.stream().map(outcome -> outcome.changePercent().abs()).toList()));
+        List<Boolean> adjusted = measured.stream()
+                .map(SignalOutcome::followedAfterMarket)
+                .filter(Objects::nonNull)
+                .toList();
+        return new OutcomeStatistics(signals, measured.size(), directional.size(), rate(directional),
+                median(measured.stream().map(outcome -> outcome.changePercent().abs()).toList()),
+                adjusted.size(), rate(adjusted));
+    }
+
+    private static BigDecimal rate(List<Boolean> decisions) {
+        if (decisions.isEmpty()) {
+            return null;
+        }
+        return BigDecimal.valueOf(decisions.stream().filter(Boolean::booleanValue).count())
+                .multiply(ONE_HUNDRED)
+                .divide(BigDecimal.valueOf(decisions.size()), DecimalMath.DISPLAY_SCALE, DecimalMath.ROUNDING_MODE);
     }
 
     static BigDecimal median(List<BigDecimal> values) {

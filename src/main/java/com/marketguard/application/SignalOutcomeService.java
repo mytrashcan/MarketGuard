@@ -2,16 +2,23 @@ package com.marketguard.application;
 
 import com.marketguard.config.MaintenanceProperties;
 import com.marketguard.config.OutcomeProperties;
+import com.marketguard.detection.evaluation.MarketBenchmark;
 import com.marketguard.detection.evaluation.SignalOutcome;
 import com.marketguard.detection.evaluation.SignalOutcomeCalculator;
 import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.anomaly.AnomalyRepository;
 import com.marketguard.domain.marketdata.PriceSnapshot;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
+import com.marketguard.domain.marketdata.SnapshotPrice;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -33,6 +40,7 @@ public class SignalOutcomeService {
     private final OutcomeProperties properties;
     private final Clock clock;
     private final SignalOutcomeCalculator calculator = new SignalOutcomeCalculator();
+    private final MarketBenchmark benchmark;
 
     public SignalOutcomeService(AnomalyRepository anomalyRepository,
                                 PriceSnapshotRepository snapshotRepository,
@@ -47,6 +55,7 @@ public class SignalOutcomeService {
         this.snapshotRepository = snapshotRepository;
         this.properties = properties;
         this.clock = clock;
+        this.benchmark = new MarketBenchmark(properties.benchmarkMinimumSamples());
     }
 
     /** 측정 시점과 확인 구간이 모두 지난 신호를 측정한다. 처리한 건수를 돌려준다. */
@@ -57,14 +66,16 @@ public class SignalOutcomeService {
         Instant cutoff = now.minus(properties.horizon()).minus(properties.matchWindow());
         List<AnomalyRecord> pending =
                 anomalyRepository.findTop200ByOutcomeStatusIsNullAndDetectedAtBeforeOrderByDetectedAtAsc(cutoff);
-        pending.forEach(record -> record.recordOutcome(measure(record), now));
+        // 같은 분에 나온 신호는 같은 시장 기준을 쓰므로 한 번만 계산한다.
+        Map<Instant, Optional<BigDecimal>> benchmarks = new HashMap<>();
+        pending.forEach(record -> record.recordOutcome(measure(record, benchmarks), now));
         if (!pending.isEmpty()) {
             log.debug("신호 결과 {}건 측정", pending.size());
         }
         return pending.size();
     }
 
-    SignalOutcome measure(AnomalyRecord record) {
+    SignalOutcome measure(AnomalyRecord record, Map<Instant, Optional<BigDecimal>> benchmarks) {
         if (!STOCK_SYMBOL.matcher(record.getStockCode()).matches()) {
             return SignalOutcome.notApplicable();
         }
@@ -78,6 +89,40 @@ public class SignalOutcomeService {
                 .findFirstByStockCodeAndCapturedAtBetweenOrderByCapturedAtAsc(
                         record.getStockCode(), target, target.plus(properties.matchWindow()))
                 .map(PriceSnapshot::getPrice).orElse(null);
-        return calculator.measure(record.getDirection(), basePrice, outcomePrice);
+        if (basePrice == null || outcomePrice == null) {
+            return calculator.measure(record.getDirection(), basePrice, outcomePrice);
+        }
+        BigDecimal market = benchmarks
+                .computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), minute -> Optional.ofNullable(marketChange(minute)))
+                .orElse(null);
+        return calculator.measure(record.getDirection(), basePrice, outcomePrice, market);
+    }
+
+    /** minute부터 horizon 동안 스캔 종목 변동률의 중앙값. 종목마다 구간 시작 직전·끝 직후 가격을 쓴다. */
+    private BigDecimal marketChange(Instant minute) {
+        Instant end = minute.plus(properties.horizon());
+        Map<String, BigDecimal> base = latestPerStock(
+                snapshotRepository.findPricesBetween(minute.minus(properties.matchWindow()), minute));
+        Map<String, BigDecimal> outcome = earliestPerStock(
+                snapshotRepository.findPricesBetween(end, end.plus(properties.matchWindow())));
+        return benchmark.medianChangePercent(base, outcome);
+    }
+
+    private static Map<String, BigDecimal> latestPerStock(List<SnapshotPrice> prices) {
+        return pricePerStock(prices, Comparator.comparing(SnapshotPrice::capturedAt));
+    }
+
+    private static Map<String, BigDecimal> earliestPerStock(List<SnapshotPrice> prices) {
+        return pricePerStock(prices, Comparator.comparing(SnapshotPrice::capturedAt).reversed());
+    }
+
+    /** later가 가리키는 쪽의 가격을 종목별로 남긴다. */
+    private static Map<String, BigDecimal> pricePerStock(List<SnapshotPrice> prices, Comparator<SnapshotPrice> later) {
+        Map<String, SnapshotPrice> chosen = new HashMap<>();
+        prices.forEach(price -> chosen.merge(price.stockCode(), price,
+                (current, candidate) -> later.compare(candidate, current) > 0 ? candidate : current));
+        Map<String, BigDecimal> result = new HashMap<>();
+        chosen.forEach((code, price) -> result.put(code, price.price()));
+        return result;
     }
 }

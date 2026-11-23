@@ -19,7 +19,8 @@ public interface AnomalyRepository extends JpaRepository<AnomalyRecord, Long> {
     @Query("""
             SELECT new com.marketguard.domain.anomaly.SignalStatRow(
                 a.ruleType, a.severity, a.stockCode, a.detectedAt, a.outcomeStatus, a.outcomeBasePrice,
-                a.outcomePrice, a.outcomeChangePercent, a.outcomeFollowedDirection)
+                a.outcomePrice, a.outcomeChangePercent, a.outcomeFollowedDirection,
+                a.outcomeMarketChangePercent, a.outcomeExcessChangePercent, a.outcomeFollowedAfterMarket)
             FROM AnomalyRecord a
             WHERE a.detectedAt >= :from AND a.detectedAt < :to
             """)

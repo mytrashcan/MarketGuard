@@ -29,6 +29,7 @@ public record SignalAnalyticsView(
     /**
      * @param followedRatePercent    방향 판정이 가능한 측정 신호 중 신호 방향으로 움직인 비율. 50%가 우연 수준이다.
      * @param medianAbsChangePercent 측정된 변동률 절대값의 중앙값
+     * @param adjustedFollowedRatePercent 같은 구간 시장 기준 변동을 뺀 뒤의 방향 지속률
      */
     public record Rule(
             RuleType ruleType,
@@ -36,7 +37,9 @@ public record SignalAnalyticsView(
             long measured,
             long directional,
             BigDecimal followedRatePercent,
-            BigDecimal medianAbsChangePercent
+            BigDecimal medianAbsChangePercent,
+            long adjustedDirectional,
+            BigDecimal adjustedFollowedRatePercent
     ) {
     }
 

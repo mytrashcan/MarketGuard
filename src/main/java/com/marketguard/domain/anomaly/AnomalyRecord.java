@@ -128,6 +128,14 @@ public class AnomalyRecord {
 
     private Boolean outcomeFollowedDirection;
 
+    @Column(precision = 30, scale = 8)
+    private BigDecimal outcomeMarketChangePercent;
+
+    @Column(precision = 30, scale = 8)
+    private BigDecimal outcomeExcessChangePercent;
+
+    private Boolean outcomeFollowedAfterMarket;
+
     private Instant outcomeMeasuredAt;
 
     public AnomalyRecord(String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt) {
@@ -181,6 +189,9 @@ public class AnomalyRecord {
         this.outcomePrice = outcome.outcomePrice();
         this.outcomeChangePercent = outcome.changePercent();
         this.outcomeFollowedDirection = outcome.followedDirection();
+        this.outcomeMarketChangePercent = outcome.marketChangePercent();
+        this.outcomeExcessChangePercent = outcome.excessChangePercent();
+        this.outcomeFollowedAfterMarket = outcome.followedAfterMarket();
         this.outcomeMeasuredAt = measuredAt;
     }
 
@@ -190,6 +201,7 @@ public class AnomalyRecord {
             return null;
         }
         return new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice, outcomeChangePercent,
-                outcomeFollowedDirection);
+                outcomeFollowedDirection, outcomeMarketChangePercent, outcomeExcessChangePercent,
+                outcomeFollowedAfterMarket);
     }
 }
