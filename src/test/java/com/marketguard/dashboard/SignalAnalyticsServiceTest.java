@@ -71,11 +71,11 @@ class SignalAnalyticsServiceTest {
         assertThat(spike.ruleType()).isEqualTo(RuleType.PRICE_SPIKE);
         assertThat(spike.signals()).isEqualTo(3);
         assertThat(spike.measured()).isEqualTo(2);
-        assertThat(spike.followedRatePercent()).isEqualByComparingTo("50");
+        assertThat(spike.followed().ratePercent()).isEqualByComparingTo("50");
         assertThat(spike.medianAbsChangePercent()).isEqualByComparingTo("1.00");
         // +1.5%(상승 신호, 지속) - 시장 0.5% = +1.0% → 여전히 지속, -0.5%(반대) - 0.5% = -1.0% → 반대
-        assertThat(spike.adjustedDirectional()).isEqualTo(2);
-        assertThat(spike.adjustedFollowedRatePercent()).isEqualByComparingTo("50");
+        assertThat(spike.followedAfterMarket().samples()).isEqualTo(2);
+        assertThat(spike.followedAfterMarket().ratePercent()).isEqualByComparingTo("50");
         assertThat(view.coverage()).isEqualTo(new SignalAnalyticsView.Coverage(2, 1, 1, 1));
     }
 

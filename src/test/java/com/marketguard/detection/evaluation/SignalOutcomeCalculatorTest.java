@@ -53,8 +53,8 @@ class SignalOutcomeCalculatorTest {
 
         assertThat(statistics.signals()).isEqualTo(6);
         assertThat(statistics.measured()).isEqualTo(4);
-        assertThat(statistics.directional()).isEqualTo(3);
-        assertThat(statistics.followedRatePercent()).isEqualByComparingTo("66.67");
+        assertThat(statistics.followed().samples()).isEqualTo(3);
+        assertThat(statistics.followed().ratePercent()).isEqualByComparingTo("66.67");
         assertThat(statistics.medianAbsChangePercent()).isEqualByComparingTo("2.50");
     }
 
@@ -62,7 +62,7 @@ class SignalOutcomeCalculatorTest {
     void returnsNoRatesWhenNothingWasMeasured() {
         OutcomeStatistics statistics = OutcomeStatistics.of(List.of(SignalOutcome.noPriceData()));
 
-        assertThat(statistics.followedRatePercent()).isNull();
+        assertThat(statistics.followed()).isNull();
         assertThat(statistics.medianAbsChangePercent()).isNull();
     }
 }

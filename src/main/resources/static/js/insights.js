@@ -12,8 +12,8 @@ const ACTION_LABELS = {
 };
 const OUTCOME_LABELS = { SUCCESS: "성공", FAILURE: "실패" };
 
-/** 방향 판정 표본이 이보다 적으면 결론을 내리지 않는다. */
-const MIN_DIRECTIONAL_SAMPLES = 20;
+/** 표본이 이보다 적으면 신뢰구간이 너무 넓어 판단하지 않는다. */
+const MIN_SAMPLES = 10;
 let measureDays = 14;
 
 export function initInsights() {
@@ -31,18 +31,27 @@ export async function refreshInsights() {
     await Promise.allSettled([loadMeasurement(), loadRules(), loadAudit()]);
 }
 
-/** 시장 보정 표본이 충분하면 그 값으로, 아니면 보정 전 값으로 판단하고 그 사실을 밝힌다. */
+const enough = interval => interval != null && interval.samples >= MIN_SAMPLES;
+
+/**
+ * 95% 신뢰구간이 50%를 벗어날 때만 결론을 낸다. 시장 보정 표본이 충분하면 그 값으로,
+ * 아니면 보정 전 값으로 판단하고 그 사실을 밝힌다.
+ */
 function verdict(rule) {
-    const adjusted = rule.adjustedDirectional >= MIN_DIRECTIONAL_SAMPLES;
-    if (!adjusted && rule.directional < MIN_DIRECTIONAL_SAMPLES) return `표본 부족 (${fmtNumber(rule.directional)}건)`;
-    const rate = Number(adjusted ? rule.adjustedFollowedRatePercent : rule.followedRatePercent);
+    const adjusted = enough(rule.followedAfterMarket);
+    const interval = adjusted ? rule.followedAfterMarket : rule.followed;
+    if (!enough(interval)) return `표본 부족 (${fmtNumber(interval?.samples || 0)}건)`;
     const suffix = adjusted ? "" : " (시장 보정 전)";
-    if (rate >= 60) return `신호 방향으로 이어지는 편${suffix}`;
-    if (rate <= 40) return `반대로 되돌아가는 편${suffix}`;
-    return `우연과 구분 어려움${suffix}`;
+    if (Number(interval.lowerPercent) > 50) return `신호 방향으로 이어짐${suffix}`;
+    if (Number(interval.upperPercent) < 50) return `반대로 되돌아감${suffix}`;
+    return `우연과 구분 안 됨${suffix}`;
 }
 
-const rateCell = value => value == null ? "–" : percent(value);
+/** "52.9% 45–61"처럼 비율과 95% 신뢰구간. */
+function rateCell(interval) {
+    if (interval == null) return "–";
+    return `${percent(interval.ratePercent)} <span class="subtle xs">${Math.round(interval.lowerPercent)}–${Math.round(interval.upperPercent)}</span>`;
+}
 
 const MONTH_DAY = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", timeZone: "UTC" });
 const dayLabel = iso => MONTH_DAY.format(new Date(`${iso}T00:00:00Z`));
@@ -83,8 +92,8 @@ async function loadMeasurement() {
             `<tr><td>${escapeHtml(ruleLabel(rule.ruleType))}</td>` +
             `<td class="r">${fmtNumber(rule.signals)}</td>` +
             `<td class="r">${fmtNumber(rule.measured)}</td>` +
-            `<td class="r">${rateCell(rule.followedRatePercent)}</td>` +
-            `<td class="r">${rateCell(rule.adjustedFollowedRatePercent)}</td>` +
+            `<td class="r nowrap">${rateCell(rule.followed)}</td>` +
+            `<td class="r nowrap">${rateCell(rule.followedAfterMarket)}</td>` +
             `<td class="r">${rule.medianAbsChangePercent == null ? "–" : `${Number(rule.medianAbsChangePercent).toFixed(2)}%`}</td>` +
             `<td class="verdict">${escapeHtml(verdict(rule))}</td></tr>`
         ).join("") : fullRow(7, stateLine("이 기간에 탐지된 신호가 없습니다."));
@@ -92,7 +101,8 @@ async function loadMeasurement() {
             `방향 지속률은 신호 ${view.horizonMinutes}분 뒤 가격이 신호 방향(상승·매수 우위는 위, 하락·매도 우위는 아래)으로 움직인 비율입니다. ` +
             `50%면 우연과 같습니다. 시장 대비는 같은 ${view.horizonMinutes}분 동안 스캔 종목 변동률의 중앙값을 뺀 뒤의 지속률로, ` +
             `시장 전체 흐름에 올라탄 신호를 걸러냅니다(지수가 아닌 동일 가중 기준). ` +
-            `방향 판정 표본이 ${MIN_DIRECTIONAL_SAMPLES}건 미만이면 판단하지 않고, 장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.`;
+            `작은 숫자는 95% 신뢰구간이며, 구간 전체가 50%보다 위나 아래일 때만 결론을 냅니다(표본 ${MIN_SAMPLES}건 미만은 판단하지 않음). ` +
+            `장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.`;
     } catch (error) {
         body.innerHTML = fullRow(7, errorLine("신호 측정 결과를 불러오지 못했습니다.", error));
     }
