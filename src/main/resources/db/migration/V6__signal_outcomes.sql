@@ -9,8 +9,6 @@ ALTER TABLE anomaly_record
     ADD COLUMN outcome_market_change_percent NUMERIC(30, 8),
     ADD COLUMN outcome_excess_change_percent NUMERIC(30, 8),
     ADD COLUMN outcome_followed_after_market BOOLEAN,
-    ADD COLUMN outcome_sector_change_percent NUMERIC(30, 8),
-    ADD COLUMN outcome_followed_after_sector BOOLEAN,
     ADD COLUMN outcome_horizon_minutes INTEGER,
     ADD COLUMN outcome_measured_at TIMESTAMPTZ,
     ADD CONSTRAINT chk_anomaly_outcome_status CHECK (
