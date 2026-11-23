@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -69,6 +70,15 @@ class DashboardControllerTest {
 
     @MockitoBean
     private Clock clock;
+
+    @Test
+    void returnsAnomalySpecificNotFoundCode() throws Exception {
+        when(anomalyRepository.findById(404L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/anomalies/404"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ANOMALY_NOT_FOUND"));
+    }
 
     @Test
     void rejectsMalformedCandleParametersBeforeCallingUpstream() throws Exception {

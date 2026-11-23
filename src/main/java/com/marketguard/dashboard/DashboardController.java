@@ -96,7 +96,7 @@ public class DashboardController {
     @GetMapping("/anomalies/{id}")
     public AnomalyView anomaly(@PathVariable @Min(1) Long id) {
         var record = anomalyRepository.findById(id)
-                .orElseThrow(() -> new com.marketguard.application.CaseNotFoundException(id));
+                .orElseThrow(() -> new AnomalyNotFoundException(id));
         return AnomalyView.from(record, stockReferenceService.nameOf(record.getStockCode()));
     }
 

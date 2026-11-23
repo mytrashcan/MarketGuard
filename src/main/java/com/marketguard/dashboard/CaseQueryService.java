@@ -20,6 +20,7 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -52,13 +53,14 @@ public class CaseQueryService {
         this.scoreCalculator = new CaseScoreCalculator(properties.scoreConfiguration());
     }
 
-    public Page<CaseSummaryView> find(CaseStatus status, RuleType ruleType, Severity severity,
+    /** statuses가 비어 있으면 상태로 거르지 않고, 여러 개면 그중 하나에 해당하는 사건을 찾는다. */
+    public Page<CaseSummaryView> find(Collection<CaseStatus> statuses, RuleType ruleType, Severity severity,
                                       String stockCode, Instant from, Instant to,
                                       Integer minimumScore, Integer maximumScore, Pageable pageable) {
         Specification<SurveillanceCase> specification = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            if (status != null) {
-                predicates.add(builder.equal(root.get("status"), status));
+            if (statuses != null && !statuses.isEmpty()) {
+                predicates.add(root.get("status").in(statuses));
             }
             if (stockCode != null) {
                 predicates.add(builder.equal(root.get("stockCode"), stockCode));
