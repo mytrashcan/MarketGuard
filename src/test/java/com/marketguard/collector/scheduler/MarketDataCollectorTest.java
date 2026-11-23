@@ -2,6 +2,7 @@ package com.marketguard.collector.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -62,8 +63,8 @@ class MarketDataCollectorTest {
         }
         history.add(new PriceSnapshot("035720", new BigDecimal("49000"), NOW.minusSeconds(30)));
         history.sort(Comparator.comparing(PriceSnapshot::getCapturedAt).reversed());
-        when(snapshots.findRecentForCodes(List.of("000660", "035720"), NOW.minus(Duration.ofMinutes(30))))
-                .thenReturn(history);
+        when(snapshots.findRecentForCodes(List.of("000660", "035720"), NOW.minus(Duration.ofMinutes(30)), 49))
+                .thenReturn(perStock(history, 49));
         RuleEngine ruleEngine = mock(RuleEngine.class);
         when(ruleEngine.evaluate(any())).thenReturn(List.of());
         CollectorObservability observability = mock(CollectorObservability.class);
@@ -77,7 +78,7 @@ class MarketDataCollectorTest {
 
         collector.scan();
 
-        verify(snapshots, times(1)).findRecentForCodes(any(), any());
+        verify(snapshots, times(1)).findRecentForCodes(any(), any(), anyInt());
         verify(snapshots, never()).findByStockCodeOrderByCapturedAtDesc(any(), any());
         ArgumentCaptor<DetectionContext> contexts = ArgumentCaptor.forClass(DetectionContext.class);
         verify(ruleEngine, times(2)).evaluate(contexts.capture());
@@ -87,6 +88,48 @@ class MarketDataCollectorTest {
         assertThat(hynix.recent()).hasSize(49).allMatch(price -> price.stockCode().equals("000660"));
         assertThat(hynix.recent().get(0).capturedAt()).isEqualTo(NOW.minusSeconds(20));
         assertThat(kakao.recent()).singleElement().satisfies(price -> assertThat(price.stockCode()).isEqualTo("035720"));
+    }
+
+    @Test
+    void keepsSavingAndEvaluatingWithoutHistoryWhenTheBatchReadFails() {
+        MarketSession marketSession = mock(MarketSession.class);
+        when(marketSession.isKrxOpen()).thenReturn(true);
+        SymbolUniverse universe = mock(SymbolUniverse.class);
+        when(universe.all()).thenReturn(List.of("000660", "035720"));
+        TossMarketDataClient client = mock(TossMarketDataClient.class);
+        when(client.fetchPrices(List.of("000660", "035720"))).thenReturn(List.of(
+                new MarketPrice("000660", new BigDecimal("200000"), NOW),
+                new MarketPrice("035720", new BigDecimal("50000"), NOW)));
+        PriceSnapshotRepository snapshots = mock(PriceSnapshotRepository.class);
+        when(snapshots.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(snapshots.findRecentForCodes(any(), any(), anyInt())).thenThrow(new IllegalStateException("db down"));
+        RuleEngine ruleEngine = mock(RuleEngine.class);
+        when(ruleEngine.evaluate(any())).thenReturn(List.of());
+        CollectorObservability observability = mock(CollectorObservability.class);
+        when(observability.startScan()).thenReturn(mock(Timer.Sample.class));
+        MarketDataCollector collector = new MarketDataCollector(
+                new TossApiProperties("https://example.test", "https://example.test/token",
+                        "client", "secret", List.of()),
+                new CollectorProperties(true, 30_000), marketSession, universe, client, snapshots,
+                mock(AnomalyDispatcher.class), ruleEngine, Clock.fixed(NOW, ZoneOffset.UTC), observability,
+                new ScanProperties("", true), new DetectionRuntimeProperties(600_000), PRICE_SPIKE);
+
+        collector.scan();
+
+        verify(snapshots, times(2)).save(any());
+        ArgumentCaptor<DetectionContext> contexts = ArgumentCaptor.forClass(DetectionContext.class);
+        verify(ruleEngine, times(2)).evaluate(contexts.capture());
+        assertThat(contexts.getAllValues()).allSatisfy(context -> assertThat(context.recent()).isEmpty());
+        verify(observability, times(1)).recordBatchFailure();
+        verify(observability, never()).recordItemFailure();
+    }
+
+    /** 데이터베이스처럼 종목마다 최신 n개만 남긴다(입력은 최신순). */
+    private static List<PriceSnapshot> perStock(List<PriceSnapshot> newestFirst, int n) {
+        java.util.Map<String, Integer> seen = new java.util.HashMap<>();
+        return newestFirst.stream()
+                .filter(row -> seen.merge(row.getStockCode(), 1, Integer::sum) <= n)
+                .toList();
     }
 
     @Test

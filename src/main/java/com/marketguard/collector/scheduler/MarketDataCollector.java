@@ -150,11 +150,10 @@ public class MarketDataCollector {
         try {
             List<String> codes = prices.stream().map(MarketPrice::stockCode).distinct().toList();
             Map<String, List<MarketPrice>> bySymbol = new HashMap<>();
-            for (PriceSnapshot snapshot : snapshotRepository.findRecentForCodes(codes, clock.instant().minus(recentHorizon))) {
-                List<MarketPrice> rows = bySymbol.computeIfAbsent(snapshot.getStockCode(), code -> new ArrayList<>());
-                if (rows.size() < RECENT_WINDOW) {
-                    rows.add(snapshot.toDomain());
-                }
+            List<PriceSnapshot> rows = snapshotRepository.findRecentForCodes(
+                    codes, clock.instant().minus(recentHorizon), RECENT_WINDOW);
+            for (PriceSnapshot snapshot : rows) {
+                bySymbol.computeIfAbsent(snapshot.getStockCode(), code -> new ArrayList<>()).add(snapshot.toDomain());
             }
             return bySymbol;
         } catch (Exception e) {
