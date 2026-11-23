@@ -14,7 +14,7 @@ Baseline: `origin/main` at `ffb16f2`. The immutable evidence is in `initial-find
 | DB-01, TST-01 | Resolved | Flyway on empty PostgreSQL, three migrations, schema validation, non-skipping Testcontainers, repository/cooldown concurrency tests |
 | PKG-01 | Resolved | Digest-pinned multi-stage image, non-root runtime, healthcheck, read-only Compose service, private volume-backed DB, smoke script |
 | OBS-01, SEC-03, DOC-01, ARCH-01 | Resolved or bounded | Prometheus/probes/runbooks, escaped dynamic HTML, CSP/SRI, inward dependencies and explicit residual risks |
-| OPS-01 | Partially resolved | Snapshot retention is configurable and backup/restore documented; anomaly/audit retention remains deployment-specific |
+| OPS-01 | Partially resolved | Snapshot and audit-log retention are configurable (audit defaults to keep forever and audits its own cleanup); backup/restore documented; anomaly retention remains deployment-specific because cases reference signals |
 | CI-01 | Repository work resolved; external blocker remains | Minimal permissions, concurrency, timeout, pinned actions, wrapper validation, test/image/Compose gates. GitHub billing prevents current hosted runs from starting |
 | QLT-01 | Resolved | Executable wrapper, wrapper validation, `-Xlint:all -Werror`, architecture test, 65% JaCoCo line gate, reproducible archives |
 

@@ -36,6 +36,7 @@ services:
       COLLECTOR_ENABLED: ${COLLECTOR_ENABLED:-false}
       TOSS_CLIENT_ID: ${TOSS_CLIENT_ID:-}
       TOSS_CLIENT_SECRET: ${TOSS_CLIENT_SECRET:-}
+      AUDIT_RETENTION: ${AUDIT_RETENTION:-0}
     ports:
       - "127.0.0.1:${HOST_PORT:-5050}:5050"
     healthcheck:
