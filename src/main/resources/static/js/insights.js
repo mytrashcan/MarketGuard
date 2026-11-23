@@ -48,6 +48,18 @@ function verdict(rule) {
     return `우연과 구분 안 됨${suffix}`;
 }
 
+const BAND_LABELS = { NEAR: "×1–1.5", MID: "×1.5–2", STRONG: "×2+" };
+
+/** 임계 배수 구간별 시장 대비 지속률. 표본이 적은 구간은 건수만 보인다. */
+function bandsCell(bands) {
+    if (!bands || bands.length === 0) return `<span class="subtle">–</span>`;
+    return bands.map(band => {
+        const interval = band.followedAfterMarket || band.followed;
+        const value = enough(interval) ? percent(interval.ratePercent) : `<span class="subtle">${fmtNumber(interval?.samples || 0)}건</span>`;
+        return `<span class="nowrap">${escapeHtml(BAND_LABELS[band.band] || band.band)} ${value}</span>`;
+    }).join(" · ");
+}
+
 /** "52.9% 45–61"처럼 비율과 95% 신뢰구간. */
 function rateCell(interval) {
     if (interval == null) return "–";
@@ -77,7 +89,7 @@ function renderVolume(daily) {
 
 async function loadMeasurement() {
     const body = $("ruleOutcomes");
-    if (!body.children.length) body.innerHTML = fullRow(7, loadingLine());
+    if (!body.children.length) body.innerHTML = fullRow(8, loadingLine());
     // 기간을 빠르게 바꾸면 늦게 도착한 이전 응답이 화면을 덮지 않도록 마지막 요청만 반영한다.
     const request = ++measureRequest;
     try {
@@ -99,12 +111,14 @@ async function loadMeasurement() {
             `<td class="r nowrap">${rateCell(rule.followed)}</td>` +
             `<td class="r nowrap">${rateCell(rule.followedAfterMarket)}</td>` +
             `<td class="r">${rule.medianAbsChangePercent == null ? "–" : `${Number(rule.medianAbsChangePercent).toFixed(2)}%`}</td>` +
+            `<td class="sm">${bandsCell(rule.bands)}</td>` +
             `<td class="verdict">${escapeHtml(verdict(rule))}</td></tr>`
-        ).join("") : fullRow(7, stateLine("이 기간에 탐지된 신호가 없습니다."));
+        ).join("") : fullRow(8, stateLine("이 기간에 탐지된 신호가 없습니다."));
         $("measureNote").textContent =
             `방향 지속률은 신호 ${view.horizonMinutes}분 뒤 가격이 신호 방향(상승·매수 우위는 위, 하락·매도 우위는 아래)으로 움직인 비율입니다. ` +
             `50%면 우연과 같습니다. 시장 대비는 같은 ${view.horizonMinutes}분 동안 스캔 종목 변동률의 중앙값을 뺀 뒤의 지속률로, ` +
             `시장 전체 흐름에 올라탄 신호를 걸러냅니다(지수가 아닌 동일 가중 기준). ` +
+            `강도별은 임계값을 몇 배 넘은 신호인지에 따라 나눈 시장 대비 지속률로, 강할수록 높아지면 임계값을 올릴 근거가 됩니다. ` +
             `작은 숫자는 95% 신뢰구간이며, 구간 전체가 50%보다 위나 아래일 때만 결론을 냅니다(표본 ${MIN_SAMPLES}건 미만은 판단하지 않음). ` +
             `장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.` +
             (coverage.otherHorizon
@@ -112,7 +126,7 @@ async function loadMeasurement() {
                 : "");
     } catch (error) {
         if (request !== measureRequest) return;
-        body.innerHTML = fullRow(7, errorLine("신호 측정 결과를 불러오지 못했습니다.", error));
+        body.innerHTML = fullRow(8, errorLine("신호 측정 결과를 불러오지 못했습니다.", error));
     }
 }
 

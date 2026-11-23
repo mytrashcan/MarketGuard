@@ -4,6 +4,7 @@ import com.marketguard.config.OutcomeProperties;
 import com.marketguard.detection.evaluation.OutcomeStatistics;
 import com.marketguard.detection.evaluation.OutcomeStatus;
 import com.marketguard.detection.evaluation.SignalOutcome;
+import com.marketguard.detection.evaluation.SignalStrength;
 import com.marketguard.detection.model.Severity;
 import com.marketguard.domain.anomaly.AnomalyRepository;
 import com.marketguard.domain.anomaly.SignalStatRow;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,14 +75,31 @@ public class SignalAnalyticsService {
                 .collect(Collectors.groupingBy(SignalStatRow::ruleType))
                 .entrySet().stream()
                 .map(entry -> {
-                    OutcomeStatistics statistics = OutcomeStatistics.of(
-                            entry.getValue().stream().map(row -> currentOutcome(row, horizon)).toList());
+                    OutcomeStatistics statistics = statistics(entry.getValue(), horizon);
                     return new SignalAnalyticsView.Rule(entry.getKey(), statistics.signals(), statistics.measured(),
                             statistics.followed(), statistics.medianAbsChangePercent(),
-                            statistics.followedAfterMarket());
+                            statistics.followedAfterMarket(), bands(entry.getValue(), horizon));
                 })
                 .sorted(Comparator.comparingLong(SignalAnalyticsView.Rule::signals).reversed()
                         .thenComparing(SignalAnalyticsView.Rule::ruleType))
+                .toList();
+    }
+
+    private static OutcomeStatistics statistics(List<SignalStatRow> rows, long horizon) {
+        return OutcomeStatistics.of(rows.stream().map(row -> currentOutcome(row, horizon)).toList());
+    }
+
+    private static List<SignalAnalyticsView.Band> bands(List<SignalStatRow> rows, long horizon) {
+        Map<SignalStrength.Band, List<SignalStatRow>> byBand = rows.stream()
+                .filter(row -> row.strengthBand() != null)
+                .collect(Collectors.groupingBy(SignalStatRow::strengthBand, () -> new EnumMap<>(SignalStrength.Band.class),
+                        Collectors.toList()));
+        return byBand.entrySet().stream()
+                .map(entry -> {
+                    OutcomeStatistics statistics = statistics(entry.getValue(), horizon);
+                    return new SignalAnalyticsView.Band(entry.getKey(), statistics.signals(), statistics.measured(),
+                            statistics.followed(), statistics.followedAfterMarket());
+                })
                 .toList();
     }
 

@@ -225,7 +225,7 @@ function reviewHtml(detail) {
 }
 
 function signalHtml(signal) {
-    const hit = signal.deviationRatio != null && Number(signal.deviationRatio) >= 1;
+    const multiple = signal.thresholdMultiple == null ? null : Number(signal.thresholdMultiple);
     const extra = (signal.measurements || []).map(value =>
         `<div><dt>${escapeHtml(value.label)}</dt><dd>${escapeHtml(fmtMetric(value.observedValue, value.unit))}</dd></div>`).join("");
     return `<article class="signal">` +
@@ -234,9 +234,10 @@ function signalHtml(signal) {
         `<p class="summary">${escapeHtml(signal.summary)}</p>` +
         `<p>${escapeHtml(signal.explanation)}</p>` +
         `<dl class="measures">` +
-        `<div${hit ? ` class="hit"` : ""}><dt>관측</dt><dd>${escapeHtml(fmtMetric(signal.observedValue, signal.valueUnit))}</dd></div>` +
+        `<div${multiple != null && multiple >= 1 ? ` class="hit"` : ""}><dt>관측</dt><dd>${escapeHtml(fmtMetric(signal.observedValue, signal.valueUnit))}</dd></div>` +
         `<div><dt>기준</dt><dd>${escapeHtml(fmtMetric(signal.baselineValue, signal.valueUnit))}</dd></div>` +
         `<div><dt>임계</dt><dd>${escapeHtml(fmtMetric(signal.thresholdValue, signal.valueUnit))}</dd></div>` +
+        (multiple == null ? "" : `<div><dt>임계 대비</dt><dd>×${escapeHtml(multiple.toFixed(2))}</dd></div>`) +
         extra + `</dl>` +
         `<p class="subtle xs">비교 범위: ${escapeHtml(signal.lookbackDescription || "없음")} · ${outcomeText(signal)}</p>` +
         `</article>`;

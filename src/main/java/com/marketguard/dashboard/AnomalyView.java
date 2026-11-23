@@ -3,6 +3,7 @@ package com.marketguard.dashboard;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
 import com.marketguard.detection.evaluation.OutcomeStatus;
+import com.marketguard.detection.evaluation.SignalStrength;
 import com.marketguard.detection.model.Direction;
 import com.marketguard.detection.model.EvidenceMeasurement;
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public record AnomalyView(
         BigDecimal baselineValue,
         BigDecimal thresholdValue,
         BigDecimal deviationRatio,
+        BigDecimal thresholdMultiple,
         String valueUnit,
         String lookbackDescription,
         Direction direction,
@@ -48,6 +50,8 @@ public record AnomalyView(
                 record.getRuleType(), record.getSeverity(), record.getMessage(), record.getDetectedAt(),
                 record.getTitle(), record.getSummary(), record.getExplanation(), record.getObservedValue(),
                 record.getBaselineValue(), record.getThresholdValue(), record.getDeviationRatio(),
+                SignalStrength.thresholdMultiple(record.getRuleType(), record.getObservedValue(),
+                        record.getThresholdValue(), record.getDeviationRatio()),
                 record.getValueUnit(), record.getLookbackDescription(), record.getDirection(),
                 record.getContextTags(), record.getRecommendedChecks(), record.getMarketObservedAt(),
                 record.getCaution(), record.getMeasurements(), record.getOutcomeStatus(),

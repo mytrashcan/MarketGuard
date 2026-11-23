@@ -1,6 +1,7 @@
 package com.marketguard.dashboard;
 
 import com.marketguard.detection.evaluation.RateInterval;
+import com.marketguard.detection.evaluation.SignalStrength;
 import com.marketguard.detection.model.RuleType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,6 +33,7 @@ public record SignalAnalyticsView(
      *                               50%가 우연 수준이다. 표본이 없으면 null
      * @param medianAbsChangePercent 측정된 변동률 절대값의 중앙값
      * @param followedAfterMarket    같은 구간 시장 기준 변동을 뺀 뒤의 같은 비율. 표본이 없으면 null
+     * @param bands                  임계 배수 구간별 같은 통계. 강도를 비교할 수 없는 규칙은 비어 있다.
      */
     public record Rule(
             RuleType ruleType,
@@ -39,6 +41,17 @@ public record SignalAnalyticsView(
             long measured,
             RateInterval followed,
             BigDecimal medianAbsChangePercent,
+            RateInterval followedAfterMarket,
+            List<Band> bands
+    ) {
+    }
+
+    /** 임계값을 몇 배 넘은 신호인지에 따른 결과. 강할수록 지속률이 오르면 임계값을 올릴 근거가 된다. */
+    public record Band(
+            SignalStrength.Band band,
+            long signals,
+            long measured,
+            RateInterval followed,
             RateInterval followedAfterMarket
     ) {
     }

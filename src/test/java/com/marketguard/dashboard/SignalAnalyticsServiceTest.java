@@ -77,6 +77,12 @@ class SignalAnalyticsServiceTest {
         assertThat(spike.followedAfterMarket().samples()).isEqualTo(2);
         assertThat(spike.followedAfterMarket().ratePercent()).isEqualByComparingTo("50");
         assertThat(view.coverage()).isEqualTo(new SignalAnalyticsView.Coverage(2, 1, 1, 1, 0));
+        // 가격 급변동 세 건은 모두 임계 1.2배라 NEAR 한 구간만 생긴다.
+        assertThat(spike.bands()).singleElement().satisfies(band -> {
+            assertThat(band.band()).isEqualTo(com.marketguard.detection.evaluation.SignalStrength.Band.NEAR);
+            assertThat(band.signals()).isEqualTo(3);
+            assertThat(band.measured()).isEqualTo(2);
+        });
     }
 
     @Test
@@ -85,7 +91,8 @@ class SignalAnalyticsServiceTest {
                 OutcomeStatus.MEASURED, measured("1.5", true));
         SignalStatRow oldHorizon = new SignalStatRow(RuleType.PRICE_SPIKE, Severity.WARNING, "005930",
                 Instant.parse("2026-07-31T00:10:00Z"), OutcomeStatus.MEASURED, new BigDecimal("100"),
-                new BigDecimal("98"), new BigDecimal("-2"), false, null, null, null, 60);
+                new BigDecimal("98"), new BigDecimal("-2"), false, null, null, null, 60,
+                null, new BigDecimal("3"), new BigDecimal("2.5"));
         when(repository.findStatRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(current, oldHorizon));
 
@@ -114,6 +121,7 @@ class SignalAnalyticsServiceTest {
         Boolean followedAfterMarket = excess == null || excess.signum() == 0 ? null
                 : (excess.signum() > 0) == (followed == change.signum() > 0);
         return new SignalStatRow(rule, severity, code, Instant.parse(at), status, base, outcome, change, followed,
-                market, excess, followedAfterMarket, status == null ? null : 30);
+                market, excess, followedAfterMarket, status == null ? null : 30,
+                null, new BigDecimal("3"), new BigDecimal("1.2"));
     }
 }
