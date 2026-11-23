@@ -19,20 +19,25 @@ class DashboardContrastTest {
     private static final double AA_NORMAL_TEXT = 4.5;
     private static final List<String> TEXT_TOKENS =
             List.of("fg", "fg-muted", "fg-subtle", "up", "down", "red", "amber", "green", "iris");
-    private static final List<String> BACKGROUNDS = List.of("bg", "bg-subtle", "bg-muted");
+    /** iris-soft는 새 신호 강조(.feed li.fresh)처럼 글자 뒤에 깔리는 배경이다. */
+    private static final List<String> BACKGROUNDS = List.of("bg", "bg-subtle", "bg-muted", "iris-soft");
     private static final Pattern TOKEN = Pattern.compile("--([a-z-]+):\\s*(#[0-9a-fA-F]{6})\\s*;");
 
     @Test
     void textTokensMeetAaOnEveryBackgroundInBothThemes() throws IOException {
         String css = Files.readString(Path.of("src/main/resources/static/css/app.css"));
-        Map<String, String> light = tokens(css.substring(0, css.indexOf("@media (prefers-color-scheme: dark)")));
-        Map<String, String> dark = new LinkedHashMap<>(light);
-        dark.putAll(tokens(css.substring(css.indexOf(":root[data-theme=\"dark\"]"),
-                css.indexOf("/* ---------- base ---------- */"))));
+        int autoDarkStart = css.indexOf("@media (prefers-color-scheme: dark)");
+        int explicitDarkStart = css.indexOf(":root[data-theme=\"dark\"]");
+        int baseStart = css.indexOf("/* ---------- base ---------- */");
+        Map<String, String> light = tokens(css.substring(0, autoDarkStart));
+        // OS 설정을 따르는 자동 다크 블록과 직접 고른 다크 블록은 따로 관리되므로 각각 확인한다.
+        Map<String, String> autoDark = override(light, css.substring(autoDarkStart, explicitDarkStart));
+        Map<String, String> explicitDark = override(light, css.substring(explicitDarkStart, baseStart));
 
         List<String> failures = new ArrayList<>();
         check("light", light, failures);
-        check("dark", dark, failures);
+        check("auto-dark", autoDark, failures);
+        check("explicit-dark", explicitDark, failures);
         assertThat(failures).as("text tokens below %.1f:1", AA_NORMAL_TEXT).isEmpty();
     }
 
@@ -51,6 +56,12 @@ class DashboardContrastTest {
                 }
             }
         }
+    }
+
+    private static Map<String, String> override(Map<String, String> base, String block) {
+        Map<String, String> merged = new LinkedHashMap<>(base);
+        merged.putAll(tokens(block));
+        return merged;
     }
 
     private static Map<String, String> tokens(String block) {
