@@ -94,6 +94,18 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
+    void forbidsInlineScriptsAndServesDashboardModules() throws Exception {
+        mockMvc.perform(get("/").with(httpBasic("operator", "a-secure-password")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Security-Policy",
+                        containsString("script-src 'self' https://cdn.jsdelivr.net https://unpkg.com;")));
+        mockMvc.perform(get("/js/main.js").with(httpBasic("operator", "a-secure-password")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/css/app.css").with(httpBasic("operator", "a-secure-password")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void rejectsUntrustedWebSocketOrigin() throws Exception {
         mockMvc.perform(get("/ws/info")
                         .header("Origin", "https://evil.example")

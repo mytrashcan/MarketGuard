@@ -19,7 +19,7 @@ Trust boundaries are:
 | Unauthorized dashboard/API access | Production Basic auth, loopback host bind, TLS proxy requirement | Loopback reads are intentionally anonymous and must not be publicly routed |
 | Anonymous case mutation (MG-01) | Status/note routes require authentication in every mode; loopback uses a fail-closed operator token plus CSRF | A stolen browser/token can write until the token is rotated |
 | Cross-origin SockJS access | Exact origin allowlist; no wildcard | Reverse proxy must preserve the correct `Origin` |
-| DOM/stored XSS | Escaped API-derived values, constrained enums, CSP, SRI | Inline legacy dashboard code requires `'unsafe-inline'` |
+| DOM/stored XSS | Escaped API-derived values, constrained enums, CSP without inline scripts in production, SRI | Inline `style` attributes still require `style-src 'unsafe-inline'`; the local profile keeps inline scripts for the H2 console |
 | Credential disclosure | No defaults, fail-fast validation, sanitized exceptions/logs, ignored local files, non-root image | Environment variables remain visible to privileged host operators |
 | Quota/resource exhaustion | Bounded inputs, peer-address API limit, upstream rate groups, timeout/retry limits, fixed-delay schedules | A reverse proxy appears as one peer unless rate limiting is also enforced at that trusted proxy |
 | False alerts from stale/bad data | Official timestamp, fail-closed calendar, domain validation, decimal policy | Data can still be semantically wrong at the upstream source |

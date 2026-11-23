@@ -21,7 +21,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 public class SecurityConfig {
 
     private static final String PRODUCTION_CONTENT_SECURITY_POLICY = "default-src 'self'; "
-            + "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+            + "script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; "
             + "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; "
             + "object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'";
     private static final String LOCAL_CONTENT_SECURITY_POLICY = "default-src 'self'; "
