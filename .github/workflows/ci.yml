@@ -46,6 +46,11 @@ jobs:
       - name: Test and build
         run: ./gradlew clean check bootJar --no-daemon
 
+      - name: Test dashboard scripts
+        run: |
+          node --version
+          node --test src/test/js/*.test.mjs
+
       - name: Build hardened image
         run: docker build --tag marketguard:ci .
 
