@@ -3,6 +3,7 @@ package com.marketguard.config;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties(prefix = "maintenance")
@@ -23,6 +24,7 @@ public record MaintenanceProperties(
         this(snapshotCleanupInterval, snapshotRetention, Duration.ZERO);
     }
 
+    @ConstructorBinding
     public MaintenanceProperties {
         if (snapshotCleanupInterval != null && snapshotCleanupInterval.compareTo(Duration.ofSeconds(1)) < 0) {
             throw new IllegalArgumentException("snapshot cleanup interval must be at least one second");
