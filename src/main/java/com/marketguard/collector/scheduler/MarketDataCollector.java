@@ -5,6 +5,7 @@ import com.marketguard.collector.SymbolUniverse;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.CollectorProperties;
 import com.marketguard.config.DetectionRuntimeProperties;
+import com.marketguard.config.PriceSpikeProperties;
 import com.marketguard.config.ScanProperties;
 import com.marketguard.config.TossApiProperties;
 import com.marketguard.detection.engine.RuleEngine;
@@ -18,19 +19,21 @@ import com.marketguard.domain.marketdata.PriceSnapshot;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import java.time.Duration;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Limit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 2단계 시장 스캐너.
+ * 2단계 시장 스캐너. 배치(최대 200종목)마다 직전 스냅샷을 한 번에 읽어 종목별 조회를 피한다.
  * - 넓게(cheap): 전 종목 유니버스를 배치(최대 200개)로 가격만 받아 가격기반 룰(가격 급변동)로 스캔.
  * - 깊게(deep): 포커스 종목(watch-list)만 호가·캔들·가격제한폭까지 받아 모든 룰 적용.
  * 정규장 시간에만 동작하며(장 마감 중 스테일 데이터 오탐 방지), 같은 (종목,룰) 신호는 쿨다운으로 중복 억제한다.
@@ -39,7 +42,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class MarketDataCollector {
 
-    private static final int RECENT_WINDOW = 50;
+    /** 종목별로 규칙에 넘기는 직전 스냅샷 수(방금 저장한 현재가 제외). */
+    private static final int RECENT_WINDOW = 49;
     private static final String CANDLE_INTERVAL = "1m";
     private static final int CANDLE_COUNT = 30;
 
@@ -53,6 +57,8 @@ public class MarketDataCollector {
     private final RuleEngine ruleEngine;
     private final boolean marketHoursOnly;
     private final Duration cooldown;
+    /** 가격 규칙은 이보다 오래된 스냅샷을 쓰지 않으므로 이 구간만 읽는다. */
+    private final Duration recentHorizon;
     private final Clock clock;
     private final CollectorObservability observability;
     private final AtomicBoolean running = new AtomicBoolean();
@@ -68,7 +74,8 @@ public class MarketDataCollector {
                                Clock clock,
                                CollectorObservability observability,
                                ScanProperties scanProperties,
-                               DetectionRuntimeProperties detectionProperties) {
+                               DetectionRuntimeProperties detectionProperties,
+                               PriceSpikeProperties priceSpikeProperties) {
         this.tossProps = tossProps;
         this.collectorProps = collectorProps;
         this.marketSession = marketSession;
@@ -81,6 +88,7 @@ public class MarketDataCollector {
         this.observability = observability;
         this.marketHoursOnly = scanProperties.marketHoursOnly();
         this.cooldown = Duration.ofMillis(detectionProperties.cooldownMs());
+        this.recentHorizon = priceSpikeProperties.maxAge();
     }
 
     @Scheduled(fixedDelayString = "${collector.poll-interval-ms}")
@@ -126,7 +134,34 @@ public class MarketDataCollector {
     private void scanBatch(List<String> symbols, boolean deep) {
         List<MarketPrice> prices = fetchPrices(symbols);
         observability.recordProcessedPrices(prices.size(), deep);
-        prices.forEach(price -> process(price, deep));
+        if (prices.isEmpty()) {
+            return;
+        }
+        // 새 현재가를 저장하기 전에 읽으므로 방금 저장할 스냅샷은 자연히 빠진다.
+        Map<String, List<MarketPrice>> recent = loadRecent(prices);
+        prices.forEach(price -> process(price, deep, recent.getOrDefault(price.stockCode(), List.of())));
+    }
+
+    /**
+     * 배치의 모든 종목에 대해 직전 스냅샷을 한 쿼리로 읽고 종목별 최신 RECENT_WINDOW개로 나눈다.
+     * 실패하면 이력 없이 진행한다(스냅샷 저장은 계속되고, 이력이 필요한 규칙만 이번에 건너뛴다).
+     */
+    private Map<String, List<MarketPrice>> loadRecent(List<MarketPrice> prices) {
+        try {
+            List<String> codes = prices.stream().map(MarketPrice::stockCode).distinct().toList();
+            Map<String, List<MarketPrice>> bySymbol = new HashMap<>();
+            for (PriceSnapshot snapshot : snapshotRepository.findRecentForCodes(codes, clock.instant().minus(recentHorizon))) {
+                List<MarketPrice> rows = bySymbol.computeIfAbsent(snapshot.getStockCode(), code -> new ArrayList<>());
+                if (rows.size() < RECENT_WINDOW) {
+                    rows.add(snapshot.toDomain());
+                }
+            }
+            return bySymbol;
+        } catch (Exception e) {
+            observability.recordBatchFailure();
+            log.warn("직전 스냅샷 배치 조회 실패({}종목): {}", prices.size(), e.getClass().getSimpleName());
+            return Map.of();
+        }
     }
 
     private List<MarketPrice> fetchPrices(List<String> symbols) {
@@ -142,9 +177,9 @@ public class MarketDataCollector {
         }
     }
 
-    private void process(MarketPrice fetched, boolean deep) {
+    private void process(MarketPrice fetched, boolean deep, List<MarketPrice> recent) {
         try {
-            DetectionContext context = buildContext(fetched, deep);
+            DetectionContext context = buildContext(fetched, deep, recent);
             ruleEngine.evaluate(context).forEach(anomaly -> dispatcher.dispatch(anomaly, cooldown));
         } catch (Exception e) {
             observability.recordItemFailure();
@@ -153,15 +188,9 @@ public class MarketDataCollector {
     }
 
     /** 현재가를 스냅샷으로 저장하고, 직전 스냅샷과(필요하면) 부가 시장 데이터로 탐지 컨텍스트를 만든다. */
-    private DetectionContext buildContext(MarketPrice fetched, boolean deep) {
+    private DetectionContext buildContext(MarketPrice fetched, boolean deep, List<MarketPrice> recent) {
         PriceSnapshot saved = snapshotRepository.save(PriceSnapshot.from(fetched));
         String symbol = saved.getStockCode();
-        List<MarketPrice> recent = snapshotRepository
-                .findByStockCodeOrderByCapturedAtDesc(symbol, Limit.of(RECENT_WINDOW))
-                .stream()
-                .filter(snapshot -> !snapshot.getId().equals(saved.getId()))
-                .map(PriceSnapshot::toDomain)
-                .toList();
         if (!deep) {
             return new DetectionContext(saved.toDomain(), recent, null, null, List.of(), List.of(), clock.instant());
         }

@@ -1,6 +1,7 @@
 package com.marketguard.domain.marketdata;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
@@ -11,6 +12,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PriceSnapshotRepository extends JpaRepository<PriceSnapshot, Long> {
 
     List<PriceSnapshot> findByStockCodeOrderByCapturedAtDesc(String stockCode, Limit limit);
+
+    /** 여러 종목의 since 이후 스냅샷을 한 번에 읽는다(최신순). 스캔 배치마다 종목별로 조회하지 않기 위해 쓴다. */
+    @Query("""
+            SELECT s FROM PriceSnapshot s
+            WHERE s.stockCode IN :codes AND s.capturedAt >= :since
+            ORDER BY s.capturedAt DESC
+            """)
+    List<PriceSnapshot> findRecentForCodes(@Param("codes") Collection<String> codes, @Param("since") Instant since);
 
     /** 구간 안에서 가장 늦은 스냅샷(신호 시점 기준가). */
     Optional<PriceSnapshot> findFirstByStockCodeAndCapturedAtBetweenOrderByCapturedAtDesc(
