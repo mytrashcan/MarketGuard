@@ -46,6 +46,13 @@ jobs:
       - name: Test and build
         run: ./gradlew clean check bootJar --no-daemon
 
+      - name: Test dashboard scripts
+        run: |
+          node --version
+          # 대시보드 .js는 package.json 없이 ES 모듈로 읽힌다. 자동 판별이 없는 Node에서는 명확히 실패시킨다.
+          node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!(major > 22 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19))) { console.error("Node 20.19+ or 22.12+ is required, found " + process.versions.node); process.exit(1); }'
+          node --test src/test/js/*.test.mjs
+
       - name: Build hardened image
         run: docker build --tag marketguard:ci .
 

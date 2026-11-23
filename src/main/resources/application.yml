@@ -120,6 +120,8 @@ scheduling:
   pool-size: 3
 
 maintenance:
+  # 감사 로그 보존 기간. 0이면 지우지 않는다(기본). 설정하면 최소 1일(예: 365d).
+  audit-retention: ${AUDIT_RETENTION:0}
   snapshot-cleanup-interval: 10m
   snapshot-retention: 1h        # 결과 측정(outcome)에 필요한 시간보다 길어야 한다
 
