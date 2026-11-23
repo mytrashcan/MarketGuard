@@ -18,6 +18,11 @@ public record MaintenanceProperties(
     /** 감사 로그를 지우기 전 최소 보존 기간. 실수로 짧게 설정해 기록을 잃지 않도록 막는다. */
     public static final Duration MINIMUM_AUDIT_RETENTION = Duration.ofDays(1);
 
+    /** 감사 로그를 영구 보존하는 설정. */
+    public MaintenanceProperties(Duration snapshotCleanupInterval, Duration snapshotRetention) {
+        this(snapshotCleanupInterval, snapshotRetention, Duration.ZERO);
+    }
+
     public MaintenanceProperties {
         if (snapshotCleanupInterval != null && snapshotCleanupInterval.compareTo(Duration.ofSeconds(1)) < 0) {
             throw new IllegalArgumentException("snapshot cleanup interval must be at least one second");
