@@ -238,8 +238,23 @@ function signalHtml(signal) {
         `<div><dt>기준</dt><dd>${escapeHtml(fmtMetric(signal.baselineValue, signal.valueUnit))}</dd></div>` +
         `<div><dt>임계</dt><dd>${escapeHtml(fmtMetric(signal.thresholdValue, signal.valueUnit))}</dd></div>` +
         extra + `</dl>` +
-        `<p class="subtle xs">비교 범위: ${escapeHtml(signal.lookbackDescription || "없음")}</p>` +
+        `<p class="subtle xs">비교 범위: ${escapeHtml(signal.lookbackDescription || "없음")} · ${outcomeText(signal)}</p>` +
         `</article>`;
+}
+
+/** 신호 후 가격 결과 한 줄. 서버 값은 숫자·열거형만 쓰고 문구는 여기서 만든다. */
+function outcomeText(signal) {
+    switch (signal.outcomeStatus) {
+        case "MEASURED": {
+            const change = Number(signal.outcomeChangePercent);
+            const direction = signal.outcomeFollowedDirection == null ? ""
+                : signal.outcomeFollowedDirection ? ", 신호 방향 유지" : ", 반대 방향";
+            return `이후 가격 ${change > 0 ? "+" : ""}${change.toFixed(2)}%${direction}`;
+        }
+        case "NO_PRICE_DATA": return "이후 가격 측정 불가";
+        case "NOT_APPLICABLE": return "이후 가격 해당 없음";
+        default: return "이후 가격 측정 대기";
+    }
 }
 
 function scoreSection(detail) {

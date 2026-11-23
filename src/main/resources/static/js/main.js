@@ -4,7 +4,7 @@ import { initTheme, toast } from "./ui.js";
 import { focusSearch, initMarket, refreshMarket } from "./market.js";
 import { closeCaseDetail, initCases, loadCases, openCase, selectedCaseId, setFilters, stepCase } from "./cases.js";
 import { pushSignal, refreshNewCaseBadge, refreshOverview } from "./overview.js";
-import { refreshInsights } from "./insights.js";
+import { initInsights, refreshInsights } from "./insights.js";
 
 const VIEWS = {
     overview: { title: "개요", refresh: refreshOverview, poll: 30000 },
@@ -158,6 +158,7 @@ function connect() {
 initTheme();
 initMarket();
 initCases({ onNavigate: navigate });
+initInsights();
 renderRuleHelp();
 
 document.querySelectorAll("[data-status-link]").forEach(link => link.addEventListener("click", event => {

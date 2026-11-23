@@ -12,8 +12,83 @@ const ACTION_LABELS = {
 };
 const OUTCOME_LABELS = { SUCCESS: "성공", FAILURE: "실패" };
 
+/** 방향 판정 표본이 이보다 적으면 결론을 내리지 않는다. */
+const MIN_DIRECTIONAL_SAMPLES = 20;
+let measureDays = 14;
+
+export function initInsights() {
+    $("measureDays").addEventListener("click", event => {
+        const button = event.target.closest("[data-days]");
+        if (!button) return;
+        measureDays = Number(button.dataset.days);
+        document.querySelectorAll("#measureDays [data-days]").forEach(item =>
+            item.setAttribute("aria-pressed", String(item === button)));
+        loadMeasurement();
+    });
+}
+
 export async function refreshInsights() {
-    await Promise.allSettled([loadRules(), loadAudit()]);
+    await Promise.allSettled([loadMeasurement(), loadRules(), loadAudit()]);
+}
+
+function verdict(rule) {
+    if (rule.directional < MIN_DIRECTIONAL_SAMPLES) return `표본 부족 (${fmtNumber(rule.directional)}건)`;
+    const rate = Number(rule.followedRatePercent);
+    if (rate >= 60) return "신호 방향으로 이어지는 편";
+    if (rate <= 40) return "반대로 되돌아가는 편";
+    return "우연과 구분 어려움";
+}
+
+const MONTH_DAY = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", timeZone: "UTC" });
+const dayLabel = iso => MONTH_DAY.format(new Date(`${iso}T00:00:00Z`));
+
+function renderVolume(daily) {
+    const host = $("dailyVolume");
+    const max = Math.max(1, ...daily.map(day => day.signals));
+    // 날짜 라벨은 약 56px마다 하나씩만 둔다(좁은 화면에서 겹치지 않게).
+    const step = Math.max(1, Math.ceil(daily.length / Math.max(2, Math.floor(host.clientWidth / 56))));
+    host.innerHTML = daily.map((day, index) => {
+        const total = (day.signals / max) * 100;
+        const critical = day.signals ? (day.critical / day.signals) * total : 0;
+        const label = `${dayLabel(day.date)}: 신호 ${day.signals}건, 심각 ${day.critical}건, 종목 ${day.stocks}개`;
+        return `<div class="bar" title="${escapeHtml(label)}">` +
+            `<i style="height:${(total - critical).toFixed(1)}%"></i><i class="crit" style="height:${critical.toFixed(1)}%"></i>` +
+            ((daily.length - 1 - index) % step === 0 ? `<span>${escapeHtml(dayLabel(day.date))}</span>` : "") +
+            `</div>`;
+    }).join("");
+    const total = daily.reduce((sum, day) => sum + day.signals, 0);
+    host.setAttribute("aria-label", `최근 ${daily.length}일 신호 ${total}건, 하루 최대 ${max}건`);
+}
+
+async function loadMeasurement() {
+    const body = $("ruleOutcomes");
+    if (!body.children.length) body.innerHTML = fullRow(6, loadingLine());
+    try {
+        const view = await api.signalAnalytics(measureDays);
+        const coverage = view.coverage;
+        const unmeasured = coverage.noPriceData + coverage.notApplicable;
+        $("mTotal").textContent = fmtNumber(view.totalSignals);
+        $("mPerDay").textContent = (view.totalSignals / view.days).toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+        $("mMeasured").innerHTML = fmtNumber(coverage.measured) +
+            (coverage.pending ? `<small style="color:var(--fg-subtle)">대기 ${fmtNumber(coverage.pending)}</small>` : "");
+        $("mUnmeasured").textContent = fmtNumber(unmeasured);
+        $("medianHead").textContent = `${view.horizonMinutes}분 변동 중앙값`;
+        renderVolume(view.daily);
+        body.innerHTML = view.rules.length ? view.rules.map(rule =>
+            `<tr><td>${escapeHtml(ruleLabel(rule.ruleType))}</td>` +
+            `<td class="r">${fmtNumber(rule.signals)}</td>` +
+            `<td class="r">${fmtNumber(rule.measured)}</td>` +
+            `<td class="r">${rule.followedRatePercent == null ? "–" : percent(rule.followedRatePercent)}</td>` +
+            `<td class="r">${rule.medianAbsChangePercent == null ? "–" : `${Number(rule.medianAbsChangePercent).toFixed(2)}%`}</td>` +
+            `<td class="verdict">${escapeHtml(verdict(rule))}</td></tr>`
+        ).join("") : fullRow(6, stateLine("이 기간에 탐지된 신호가 없습니다."));
+        $("measureNote").textContent =
+            `방향 지속률은 신호 ${view.horizonMinutes}분 뒤 가격이 신호 방향(상승·매수 우위는 위, 하락·매도 우위는 아래)으로 움직인 비율입니다. ` +
+            `50%면 우연과 같습니다. 방향 판정 표본이 ${MIN_DIRECTIONAL_SAMPLES}건 미만이면 판단하지 않습니다. ` +
+            `시장 전체가 함께 움직인 효과는 빼지 않았고, 장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.`;
+    } catch (error) {
+        body.innerHTML = fullRow(6, errorLine("신호 측정 결과를 불러오지 못했습니다.", error));
+    }
 }
 
 const fullRow = (columns, html) => `<tr><td colspan="${columns}">${html}</td></tr>`;

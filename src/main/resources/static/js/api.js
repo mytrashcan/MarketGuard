@@ -92,6 +92,7 @@ export const api = {
     cases: params => getJson(`/api/cases?${new URLSearchParams(params)}`),
     caseDetail: id => getJson(`/api/cases/${Number(id)}`),
     ruleAnalytics: () => getJson("/api/analytics/rules"),
+    signalAnalytics: (days = 14) => getJson(`/api/analytics/signals?days=${Number(days)}`),
     audit: (limit = 100) => getJson(`/api/audit?limit=${limit}`),
     updateStatus: (id, payload) => writeApi(`/api/cases/${Number(id)}/status`, "PATCH", payload),
     addNote: (id, note) => writeApi(`/api/cases/${Number(id)}/notes`, "POST", { note })
