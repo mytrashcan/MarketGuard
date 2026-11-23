@@ -86,19 +86,23 @@ class SignalOutcomeServiceTest {
                         new SnapshotPrice("A", new BigDecimal("100"), SIGNAL_AT.minusSeconds(10)),
                         new SnapshotPrice("A", new BigDecimal("50"), SIGNAL_AT.plusSeconds(30)),
                         new SnapshotPrice("B", new BigDecimal("100"), SIGNAL_AT),
-                        new SnapshotPrice("C", new BigDecimal("100"), SIGNAL_AT)));
+                        new SnapshotPrice("C", new BigDecimal("100"), SIGNAL_AT),
+                        new SnapshotPrice("005930", new BigDecimal("100"), SIGNAL_AT)));
         when(snapshots.findPricesBetween(target, target.plus(Duration.ofMinutes(4)))).thenReturn(List.of(
                 new SnapshotPrice("A", new BigDecimal("101"), target.plusSeconds(10)),
                 new SnapshotPrice("A", new BigDecimal("150"), target.plusSeconds(60)),
                 new SnapshotPrice("B", new BigDecimal("102"), target),
                 new SnapshotPrice("C", new BigDecimal("103"), target),
+                // 신호 종목 자신(+10%)은 업종 기준에서 빠져야 한다. 포함되면 업종 중앙값이 +2%가 된다.
+                new SnapshotPrice("005930", new BigDecimal("110"), target),
                 new SnapshotPrice("C", new BigDecimal("500"), target.plus(Duration.ofMinutes(3)).plusSeconds(30))));
 
         service.measurePending();
 
         assertThat(record.getOutcomeChangePercent()).isEqualByComparingTo("3");
-        assertThat(record.getOutcomeMarketChangePercent()).isEqualByComparingTo("2");
-        assertThat(record.getOutcomeExcessChangePercent()).isEqualByComparingTo("1");
+        // 시장 기준은 스캔 종목 전체: +1%, +2%, +3%, +10% → 중앙값 +2.5%
+        assertThat(record.getOutcomeMarketChangePercent()).isEqualByComparingTo("2.5");
+        assertThat(record.getOutcomeExcessChangePercent()).isEqualByComparingTo("0.5");
         // 같은 업종(신호 종목 제외): A +1%, B +2% → 중앙값 +1.5%
         assertThat(record.getOutcomeSectorChangePercent()).isEqualByComparingTo("1.5");
     }

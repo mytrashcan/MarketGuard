@@ -10,7 +10,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,9 +86,7 @@ public class SectorDirectory implements SectorLookup {
             if (trimmed.isEmpty() || trimmed.startsWith("#")) {
                 continue;
             }
-            List<String> cells = Arrays.stream(trimmed.split(",", -1))
-                    .map(cell -> cell.strip().replaceAll("^\"|\"$", "").strip())
-                    .toList();
+            List<String> cells = splitCsv(trimmed);
             int codeHeader = cells.indexOf("종목코드");
             int sectorHeader = cells.indexOf("업종명");
             if (codeHeader >= 0 && sectorHeader >= 0) {
@@ -106,5 +104,34 @@ public class SectorDirectory implements SectorLookup {
             }
         }
         return Map.copyOf(result);
+    }
+
+    /** 큰따옴표로 감싼 칸 안의 쉼표와 이스케이프된 따옴표("")를 지키며 한 줄을 나눈다. */
+    static List<String> splitCsv(String line) {
+        List<String> cells = new ArrayList<>();
+        StringBuilder cell = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (quoted) {
+                if (c == '"' && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    cell.append('"');
+                    i++;
+                } else if (c == '"') {
+                    quoted = false;
+                } else {
+                    cell.append(c);
+                }
+            } else if (c == '"') {
+                quoted = true;
+            } else if (c == ',') {
+                cells.add(cell.toString().strip());
+                cell.setLength(0);
+            } else {
+                cell.append(c);
+            }
+        }
+        cells.add(cell.toString().strip());
+        return cells;
     }
 }

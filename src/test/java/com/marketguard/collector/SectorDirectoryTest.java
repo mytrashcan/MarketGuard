@@ -20,6 +20,18 @@ class SectorDirectoryTest {
     }
 
     @Test
+    void keepsCommasInsideQuotedFields() {
+        assertThat(SectorDirectory.parse(List.of(
+                "\"종목코드\",\"종목명\",\"업종명\"",
+                "\"005930\",\"삼성전자, 우\",\"운수,창고\"",
+                "\"000660\",\"SK \"\"하이닉스\"\"\",\"운수,장비\"")))
+                .containsEntry("005930", "운수,창고")
+                .containsEntry("000660", "운수,장비");
+        assertThat(SectorDirectory.splitCsv("a,\"b,c\",\"d\"\"e\""))
+                .containsExactly("a", "b,c", "d\"e");
+    }
+
+    @Test
     void readsTheKrxSectorExportByHeaderInCp949(@TempDir Path directory) throws Exception {
         Path file = directory.resolve("sectors.csv");
         Files.write(file, String.join("\n",
