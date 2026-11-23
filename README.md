@@ -154,7 +154,8 @@ reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성�
 ./gradlew clean check bootJar
 docker build -t marketguard:local .
 ./scripts/compose-smoke.sh
-# 대시보드 스크립트 단위 테스트(Node 18 이상, 의존성 없음)
+# 대시보드 스크립트 단위 테스트(Node 20.19 또는 22.12 이상, 의존성 없음)
+# 대시보드 .js 모듈을 package.json 없이 ES 모듈로 읽으려면 Node의 모듈 자동 판별이 필요합니다.
 node --test src/test/js/*.test.mjs
 ```
 

@@ -1,4 +1,5 @@
-// 대시보드 표시 로직 단위 테스트. 실행: node --test src/test/js/
+// 대시보드 표시 로직 단위 테스트. 실행: node --test src/test/js/*.test.mjs
+// Node 20.19+ 또는 22.12+ 필요: format.js를 package.json 없이 ES 모듈로 읽으려면 모듈 자동 판별이 있어야 한다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
