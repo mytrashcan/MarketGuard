@@ -40,6 +40,7 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 - `GET /api/anomalies?limit=50` remains backward compatible and now adds structured evidence fields.
 - `GET /api/anomalies/{id}` returns one structured signal.
 - `GET /api/stocks/{code}/context?count=120` returns quote/candles and explicit unavailable context. It never fabricates news, disclosures, industry movement, or index returns.
+- `GET /api/settings/detection` returns the running detection thresholds per rule (`rules[].parameters[]` with `key`, Korean `label`, `value`, `unit`), the notification cooldown, and case grouping/score settings including every rule weight. It contains no secrets and is read-only.
 - `GET /api/analytics/rules` returns occurrence and case counts, dismissed/escalated percentages, and average completed review time.
 
 ## Stable errors

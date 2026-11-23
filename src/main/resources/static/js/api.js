@@ -94,5 +94,6 @@ export const api = {
     ruleAnalytics: () => getJson("/api/analytics/rules"),
     audit: (limit = 100) => getJson(`/api/audit?limit=${limit}`),
     updateStatus: (id, payload) => writeApi(`/api/cases/${Number(id)}/status`, "PATCH", payload),
-    addNote: (id, note) => writeApi(`/api/cases/${Number(id)}/notes`, "POST", { note })
+    addNote: (id, note) => writeApi(`/api/cases/${Number(id)}/notes`, "POST", { note }),
+    detectionSettings: () => getJson("/api/settings/detection")
 };

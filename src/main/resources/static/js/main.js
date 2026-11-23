@@ -1,6 +1,7 @@
 // 진입점: 해시 라우팅, 주기적 갱신, 단축키, 실시간 알림(WebSocket).
-import { RULES, escapeHtml, fmtTime, ruleLabel } from "./format.js";
+import { fmtTime, ruleLabel } from "./format.js";
 import { initTheme, toast } from "./ui.js";
+import { renderHelp } from "./help.js";
 import { focusSearch, initMarket, refreshMarket } from "./market.js";
 import { closeCaseDetail, initCases, loadCases, openCase, selectedCaseId, setFilters, stepCase } from "./cases.js";
 import { pushSignal, refreshNewCaseBadge, refreshOverview } from "./overview.js";
@@ -68,8 +69,7 @@ function schedulePoll() {
 }
 
 function renderRuleHelp() {
-    $("ruleHelp").innerHTML = Object.entries(RULES).map(([type, meta]) =>
-        `<dt>${escapeHtml(meta.label)}<span class="mono">${type}</span></dt><dd>${escapeHtml(meta.help)}</dd>`).join("");
+    renderHelp();
 }
 
 /* ---------------- 단축키 ---------------- */

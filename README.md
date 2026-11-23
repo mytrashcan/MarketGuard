@@ -137,6 +137,7 @@ reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성�
 | `PATCH /api/cases/{id}/status` | 버전 기반 상태 변경 | 아니요 |
 | `POST /api/cases/{id}/notes` | 검토 메모 추가 | 아니요 |
 | `GET /api/stocks/{code}/context` | 가격·거래량 차트와 현재 가용 시장 맥락 | 아니요 |
+| `GET /api/settings/detection` | 운영 중인 규칙별 임계값과 사건 묶음·점수 설정(읽기 전용) | 아니요 |
 | `GET /api/analytics/rules` | 규칙별 발생·기각·상위 검토·평균 검토시간 | 아니요 |
 | `GET /api/csrf` | 브라우저 쓰기 요청용 CSRF 토큰 | 아니요 |
 | `GET /api/audit?limit=100` | 최근 감사 기록 | 아니요 |
