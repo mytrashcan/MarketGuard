@@ -13,6 +13,7 @@ import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import com.marketguard.domain.marketdata.SnapshotPrice;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -71,16 +72,16 @@ public class SignalOutcomeService {
         Instant cutoff = now.minus(properties.horizon()).minus(properties.matchWindow());
         List<AnomalyRecord> pending =
                 anomalyRepository.findTop200ByOutcomeStatusIsNullAndDetectedAtBeforeOrderByDetectedAtAsc(cutoff);
-        // 같은 분에 나온 신호는 같은 구간 가격을 쓰므로 한 번만 읽는다.
-        Map<Instant, WindowPrices> windows = new HashMap<>();
-        pending.forEach(record -> record.recordOutcome(measure(record, windows), properties.horizon(), now));
+        // 같은 분에 나온 신호들의 가격 행은 한 번만 읽고, 신호마다 정확한 구간으로 다시 거른다.
+        Map<Instant, MinuteRows> rows = new HashMap<>();
+        pending.forEach(record -> record.recordOutcome(measure(record, rows), properties.horizon(), now));
         if (!pending.isEmpty()) {
             log.debug("신호 결과 {}건 측정", pending.size());
         }
         return pending.size();
     }
 
-    SignalOutcome measure(AnomalyRecord record, Map<Instant, WindowPrices> windows) {
+    SignalOutcome measure(AnomalyRecord record, Map<Instant, MinuteRows> rows) {
         if (!STOCK_SYMBOL.matcher(record.getStockCode()).matches()) {
             return SignalOutcome.notApplicable();
         }
@@ -97,34 +98,50 @@ public class SignalOutcomeService {
         if (basePrice == null || outcomePrice == null) {
             return calculator.measure(record.getDirection(), basePrice, outcomePrice);
         }
-        WindowPrices window = windows.computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), this::windowPrices);
-        BigDecimal market = benchmark.medianChangePercent(window.base(), window.outcome());
+        MinuteRows minuteRows = rows.computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), this::minuteRows);
+        Map<String, BigDecimal> marketBase =
+                latestPerStock(within(minuteRows.base(), signalAt.minus(properties.matchWindow()), signalAt));
+        Map<String, BigDecimal> marketOutcome =
+                earliestPerStock(within(minuteRows.outcome(), target, target.plus(properties.matchWindow())));
+        BigDecimal market = benchmark.medianChangePercent(marketBase, marketOutcome);
         BigDecimal sector = sectors.sectorOf(record.getStockCode())
-                .map(name -> sectorChange(window, name, record.getStockCode()))
+                .map(name -> sectorChange(marketBase, marketOutcome, name, record.getStockCode()))
                 .orElse(null);
         return calculator.measure(record.getDirection(), basePrice, outcomePrice, market, sector);
     }
 
-    /** 신호 종목을 뺀 같은 업종 종목의 변동률 중앙값. */
-    private BigDecimal sectorChange(WindowPrices window, String sector, String excludedCode) {
-        Map<String, BigDecimal> base = new HashMap<>();
-        window.base().forEach((code, price) -> {
+    /** 신호 종목을 뺀 같은 업종 종목의 변동률 중앙값. 시장 기준과 같은 구간의 가격을 쓴다. */
+    private BigDecimal sectorChange(Map<String, BigDecimal> base, Map<String, BigDecimal> outcome,
+                                    String sector, String excludedCode) {
+        Map<String, BigDecimal> sameSector = new HashMap<>();
+        base.forEach((code, price) -> {
             if (!code.equals(excludedCode) && sectors.sectorOf(code).filter(sector::equals).isPresent()) {
-                base.put(code, price);
+                sameSector.put(code, price);
             }
         });
-        return sectorBenchmark.medianChangePercent(base, window.outcome());
+        return sectorBenchmark.medianChangePercent(sameSector, outcome);
     }
 
-    /** 종목별 구간 시작 직전 가격과 끝 직후 가격. */
-    record WindowPrices(Map<String, BigDecimal> base, Map<String, BigDecimal> outcome) {
+    /**
+     * minute로 시작하는 1분 안의 어떤 신호든 쓸 수 있도록 넉넉히 읽은 가격 행.
+     * 시장 기준은 신호 종목과 같은 정확한 구간(신호 시각 기준)으로 다시 걸러 쓴다.
+     */
+    record MinuteRows(List<SnapshotPrice> base, List<SnapshotPrice> outcome) {
     }
 
-    private WindowPrices windowPrices(Instant minute) {
-        Instant end = minute.plus(properties.horizon());
-        return new WindowPrices(
-                latestPerStock(snapshotRepository.findPricesBetween(minute.minus(properties.matchWindow()), minute)),
-                earliestPerStock(snapshotRepository.findPricesBetween(end, end.plus(properties.matchWindow()))));
+    private MinuteRows minuteRows(Instant minute) {
+        Instant nextMinute = minute.plus(Duration.ofMinutes(1));
+        Instant outcomeStart = minute.plus(properties.horizon());
+        return new MinuteRows(
+                snapshotRepository.findPricesBetween(minute.minus(properties.matchWindow()), nextMinute),
+                snapshotRepository.findPricesBetween(outcomeStart,
+                        nextMinute.plus(properties.horizon()).plus(properties.matchWindow())));
+    }
+
+    private static List<SnapshotPrice> within(List<SnapshotPrice> prices, Instant from, Instant to) {
+        return prices.stream()
+                .filter(price -> !price.capturedAt().isBefore(from) && !price.capturedAt().isAfter(to))
+                .toList();
     }
 
     private static Map<String, BigDecimal> latestPerStock(List<SnapshotPrice> prices) {

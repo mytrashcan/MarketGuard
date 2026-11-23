@@ -50,11 +50,15 @@ function verdict(rule) {
 
 const BAND_LABELS = { NEAR: "×1–1.5", MID: "×1.5–2", STRONG: "×2+" };
 
-/** 임계 배수 구간별 시장 대비 지속률. 표본이 적은 구간은 건수만 보인다. */
+/**
+ * 임계 배수 구간별 시장 대비 지속률. 시장 기준이 없는 구간을 보정 전 값으로 대신하면
+ * 구간끼리 다른 척도를 비교하게 되므로 비워 둔다. 표본이 적은 구간은 건수만 보인다.
+ */
 function bandsCell(bands) {
-    if (!bands || bands.length === 0) return `<span class="subtle">–</span>`;
-    return bands.map(band => {
-        const interval = band.followedAfterMarket || band.followed;
+    const adjusted = (bands || []).filter(band => band.followedAfterMarket);
+    if (adjusted.length === 0) return `<span class="subtle">–</span>`;
+    return adjusted.map(band => {
+        const interval = band.followedAfterMarket;
         const value = enough(interval) ? percent(interval.ratePercent) : `<span class="subtle">${fmtNumber(interval?.samples || 0)}건</span>`;
         return `<span class="nowrap">${escapeHtml(BAND_LABELS[band.band] || band.band)} ${value}</span>`;
     }).join(" · ");
