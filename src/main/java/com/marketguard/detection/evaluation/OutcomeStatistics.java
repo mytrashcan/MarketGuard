@@ -14,13 +14,15 @@ import java.util.Objects;
  * @param followed               방향 판정이 가능한 측정 신호 중 신호 방향으로 움직인 비율과 95% 신뢰구간. 표본이 없으면 null
  * @param medianAbsChangePercent 측정된 변동률 절대값의 중앙값. 표본이 없으면 null
  * @param followedAfterMarket    시장 기준을 뺀 초과 변동으로 본 같은 비율. 표본이 없으면 null
+ * @param followedAfterSector    업종 기준을 뺀 초과 변동으로 본 같은 비율. 표본이 없으면 null
  */
 public record OutcomeStatistics(
         long signals,
         long measured,
         RateInterval followed,
         BigDecimal medianAbsChangePercent,
-        RateInterval followedAfterMarket
+        RateInterval followedAfterMarket,
+        RateInterval followedAfterSector
 ) {
 
     private static final BigDecimal TWO = new BigDecimal("2");
@@ -42,7 +44,8 @@ public record OutcomeStatistics(
                 .toList();
         return new OutcomeStatistics(signals, measured.size(), interval(directional),
                 median(measured.stream().map(outcome -> outcome.changePercent().abs()).toList()),
-                interval(adjusted));
+                interval(adjusted),
+                interval(measured.stream().map(SignalOutcome::followedAfterSector).filter(Objects::nonNull).toList()));
     }
 
     private static RateInterval interval(List<Boolean> decisions) {

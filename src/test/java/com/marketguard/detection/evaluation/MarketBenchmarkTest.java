@@ -38,14 +38,17 @@ class MarketBenchmarkTest {
 
         // 종목 +1%, 시장 +2% → 초과 -1%: 겉보기엔 상승 지속이지만 시장보다 약했다.
         SignalOutcome rodeTheMarket = calculator.measure(
-                Direction.UP, new BigDecimal("100"), new BigDecimal("101"), new BigDecimal("2"));
+                Direction.UP, new BigDecimal("100"), new BigDecimal("101"), new BigDecimal("2"), null);
         SignalOutcome withoutBenchmark = calculator.measure(
-                Direction.UP, new BigDecimal("100"), new BigDecimal("101"), null);
+                Direction.UP, new BigDecimal("100"), new BigDecimal("101"), null, new BigDecimal("0.5"));
 
         assertThat(rodeTheMarket.followedDirection()).isTrue();
         assertThat(rodeTheMarket.excessChangePercent()).isEqualByComparingTo("-1");
         assertThat(rodeTheMarket.followedAfterMarket()).isFalse();
         assertThat(withoutBenchmark.excessChangePercent()).isNull();
         assertThat(withoutBenchmark.followedAfterMarket()).isNull();
+        // 업종 +0.5% → 업종 대비 +0.5%: 업종보다는 강했다.
+        assertThat(withoutBenchmark.sectorChangePercent()).isEqualByComparingTo("0.5");
+        assertThat(withoutBenchmark.followedAfterSector()).isTrue();
     }
 }

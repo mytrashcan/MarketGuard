@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.marketguard.application.port.SectorLookup;
 import com.marketguard.config.MaintenanceProperties;
 import com.marketguard.config.OutcomeProperties;
 import com.marketguard.detection.evaluation.OutcomeStatus;
@@ -23,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -31,14 +33,18 @@ class SignalOutcomeServiceTest {
     private static final Instant SIGNAL_AT = Instant.parse("2026-07-31T01:00:00Z");
     private static final Instant NOW = SIGNAL_AT.plus(Duration.ofMinutes(40));
     private static final OutcomeProperties OUTCOME =
-            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3);
+            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3, "", 2);
     private static final MaintenanceProperties MAINTENANCE =
             new MaintenanceProperties(Duration.ofMinutes(10), Duration.ofHours(1));
+
+    /** 005930과 A, B는 반도체, C는 업종 없음. */
+    private static final Map<String, String> SECTOR_MAP = Map.of("005930", "반도체", "A", "반도체", "B", "반도체");
+    private static final SectorLookup SECTORS = code -> Optional.ofNullable(SECTOR_MAP.get(code));
 
     private final AnomalyRepository anomalies = mock(AnomalyRepository.class);
     private final PriceSnapshotRepository snapshots = mock(PriceSnapshotRepository.class);
     private final SignalOutcomeService service = new SignalOutcomeService(
-            anomalies, snapshots, OUTCOME, MAINTENANCE, Clock.fixed(NOW, ZoneOffset.UTC));
+            anomalies, snapshots, OUTCOME, MAINTENANCE, SECTORS::sectorOf, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void recordsThePriceChangeBetweenTheSignalAndTheHorizon() {
@@ -88,6 +94,8 @@ class SignalOutcomeServiceTest {
         assertThat(record.getOutcomeChangePercent()).isEqualByComparingTo("3");
         assertThat(record.getOutcomeMarketChangePercent()).isEqualByComparingTo("2");
         assertThat(record.getOutcomeExcessChangePercent()).isEqualByComparingTo("1");
+        // 같은 업종(신호 종목 제외): A +1%, B +2% → 중앙값 +1.5%
+        assertThat(record.getOutcomeSectorChangePercent()).isEqualByComparingTo("1.5");
     }
 
     @Test
@@ -123,7 +131,7 @@ class SignalOutcomeServiceTest {
         MaintenanceProperties tooShort = new MaintenanceProperties(Duration.ofMinutes(10), Duration.ofMinutes(30));
 
         assertThatThrownBy(() -> new SignalOutcomeService(
-                anomalies, snapshots, OUTCOME, tooShort, Clock.fixed(NOW, ZoneOffset.UTC)))
+                anomalies, snapshots, OUTCOME, tooShort, SECTORS::sectorOf, Clock.fixed(NOW, ZoneOffset.UTC)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("snapshot-retention");
     }

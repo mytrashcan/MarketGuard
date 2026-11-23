@@ -33,6 +33,7 @@ public record SignalAnalyticsView(
      *                               50%가 우연 수준이다. 표본이 없으면 null
      * @param medianAbsChangePercent 측정된 변동률 절대값의 중앙값
      * @param followedAfterMarket    같은 구간 시장 기준 변동을 뺀 뒤의 같은 비율. 표본이 없으면 null
+     * @param followedAfterSector    같은 업종 다른 종목의 변동을 뺀 뒤의 같은 비율. 업종 파일이 없으면 null
      * @param bands                  임계 배수 구간별 같은 통계. 강도를 비교할 수 없는 규칙은 비어 있다.
      */
     public record Rule(
@@ -42,6 +43,7 @@ public record SignalAnalyticsView(
             RateInterval followed,
             BigDecimal medianAbsChangePercent,
             RateInterval followedAfterMarket,
+            RateInterval followedAfterSector,
             List<Band> bands
     ) {
     }

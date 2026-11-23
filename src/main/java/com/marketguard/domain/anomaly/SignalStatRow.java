@@ -25,7 +25,9 @@ public record SignalStatRow(
         Integer outcomeHorizonMinutes,
         BigDecimal observedValue,
         BigDecimal thresholdValue,
-        BigDecimal deviationRatio
+        BigDecimal deviationRatio,
+        BigDecimal outcomeSectorChangePercent,
+        Boolean outcomeFollowedAfterSector
 ) {
     /** 임계 배수 구간. 강도를 비교할 수 없는 규칙이면 null. */
     public SignalStrength.Band strengthBand() {
@@ -41,6 +43,7 @@ public record SignalStatRow(
     public SignalOutcome outcome() {
         return outcomeStatus == null ? null : new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice,
                 outcomeChangePercent, outcomeFollowedDirection, outcomeMarketChangePercent,
-                outcomeExcessChangePercent, outcomeFollowedAfterMarket);
+                outcomeExcessChangePercent, outcomeFollowedAfterMarket, outcomeSectorChangePercent,
+                outcomeFollowedAfterSector);
     }
 }

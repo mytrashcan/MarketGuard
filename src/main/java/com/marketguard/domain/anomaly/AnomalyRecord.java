@@ -137,6 +137,11 @@ public class AnomalyRecord {
 
     private Boolean outcomeFollowedAfterMarket;
 
+    @Column(precision = 30, scale = 8)
+    private BigDecimal outcomeSectorChangePercent;
+
+    private Boolean outcomeFollowedAfterSector;
+
     /** 결과를 잰 기준(신호 후 몇 분). 설정이 바뀌어도 서로 다른 기준의 결과를 섞지 않기 위해 남긴다. */
     private Integer outcomeHorizonMinutes;
 
@@ -196,6 +201,8 @@ public class AnomalyRecord {
         this.outcomeMarketChangePercent = outcome.marketChangePercent();
         this.outcomeExcessChangePercent = outcome.excessChangePercent();
         this.outcomeFollowedAfterMarket = outcome.followedAfterMarket();
+        this.outcomeSectorChangePercent = outcome.sectorChangePercent();
+        this.outcomeFollowedAfterSector = outcome.followedAfterSector();
         this.outcomeHorizonMinutes = Math.toIntExact(horizon.toMinutes());
         this.outcomeMeasuredAt = measuredAt;
     }
@@ -207,6 +214,6 @@ public class AnomalyRecord {
         }
         return new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice, outcomeChangePercent,
                 outcomeFollowedDirection, outcomeMarketChangePercent, outcomeExcessChangePercent,
-                outcomeFollowedAfterMarket);
+                outcomeFollowedAfterMarket, outcomeSectorChangePercent, outcomeFollowedAfterSector);
     }
 }
