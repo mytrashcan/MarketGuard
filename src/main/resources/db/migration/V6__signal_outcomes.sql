@@ -10,9 +10,12 @@ ALTER TABLE anomaly_record
     ADD CONSTRAINT chk_anomaly_outcome_status CHECK (
         outcome_status IS NULL OR outcome_status IN ('MEASURED', 'NO_PRICE_DATA', 'NOT_APPLICABLE')
     ),
+    -- IS NOT NULL is explicit: a NULL comparison would make the check unknown, and CHECK accepts unknown.
     ADD CONSTRAINT chk_anomaly_outcome_measured CHECK (
         outcome_status IS DISTINCT FROM 'MEASURED'
-        OR (outcome_base_price > 0 AND outcome_price > 0 AND outcome_change_percent IS NOT NULL)
+        OR (outcome_base_price IS NOT NULL AND outcome_base_price > 0
+            AND outcome_price IS NOT NULL AND outcome_price > 0
+            AND outcome_change_percent IS NOT NULL)
     );
 
 -- Signals recorded before this migration have no retained snapshots to measure against.
