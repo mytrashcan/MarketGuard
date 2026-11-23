@@ -19,7 +19,10 @@ const state = {
     detail: null,
     chart: null,
     listRequest: 0,
-    detailRequest: 0
+    detailRequest: 0,
+    // 사용자가 요청한 알림·포커스는 그 뒤 조용한 갱신이 요청을 대신해도 마지막 결과에서 처리한다.
+    announceListPending: false,
+    focusCaseIdPending: null
 };
 
 const $ = id => document.getElementById(id);
@@ -81,6 +84,7 @@ function queryParams() {
 /** announceResult: 사용자가 필터·페이지를 바꿨을 때만 결과 건수를 읽어 준다(주기적 갱신은 조용히). */
 export async function loadCases({ announceResult = false } = {}) {
     const request = ++state.listRequest;
+    if (announceResult) state.announceListPending = true;
     const list = $("caseList");
     if (state.cases.length === 0) list.innerHTML = `<div style="padding:0 16px">${loadingLine()}</div>`;
     try {
@@ -94,13 +98,20 @@ export async function loadCases({ announceResult = false } = {}) {
         $("casePage").textContent = `${state.page + 1} / ${totalPages}`;
         $("casePrev").disabled = state.page <= 0;
         $("caseNext").disabled = state.page + 1 >= totalPages;
-        if (announceResult) announce(`사건 ${total.toLocaleString("ko-KR")}건, ${state.page + 1}쪽`);
+        if (state.announceListPending) {
+            state.announceListPending = false;
+            announce(`사건 ${total.toLocaleString("ko-KR")}건, ${state.page + 1}쪽`);
+        }
         list.innerHTML = state.cases.length
             ? state.cases.map(caseRow).join("")
             : `<div style="padding:0 16px">${stateLine(state.filters.status === "OPEN" ? "처리할 사건이 없습니다." : "조건에 맞는 사건이 없습니다.")}</div>`;
     } catch (error) {
         if (request !== state.listRequest) return;
         list.innerHTML = `<div style="padding:0 16px">${errorLine("사건 목록을 불러오지 못했습니다.", error)}</div>`;
+        if (state.announceListPending) {
+            state.announceListPending = false;
+            announce(`사건 목록을 불러오지 못했습니다. ${error.message || ""}`.trim());
+        }
     }
 }
 
@@ -143,6 +154,7 @@ export function stepCase(offset) {
  */
 export async function openCase(id, { userOpened = false } = {}) {
     const request = ++state.detailRequest;
+    if (userOpened) state.focusCaseIdPending = id;
     state.selectedId = id;
     document.querySelectorAll("[data-case-id]").forEach(row =>
         row.setAttribute("aria-current", String(Number(row.dataset.caseId) === id)));
@@ -154,7 +166,8 @@ export async function openCase(id, { userOpened = false } = {}) {
         if (request !== state.detailRequest) return;
         state.detail = detail;
         renderDetail(detail);
-        if (userOpened) {
+        if (state.focusCaseIdPending === detail.id) {
+            state.focusCaseIdPending = null;
             $("caseHeading")?.focus();
             announce(`사건 ${Number(detail.id)}, ${detail.stockName || detail.stockCode}, ${detail.title}`);
         }
@@ -162,6 +175,10 @@ export async function openCase(id, { userOpened = false } = {}) {
         if (request !== state.detailRequest) return;
         host.innerHTML = `<div class="detail">${crumb(id)}${errorLine("사건을 불러오지 못했습니다.", error)}</div>`;
         bindCrumb();
+        if (state.focusCaseIdPending === id) {
+            state.focusCaseIdPending = null;
+            announce(`사건 ${Number(id)}을 불러오지 못했습니다. ${error.message || ""}`.trim());
+        }
     }
 }
 

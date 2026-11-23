@@ -131,6 +131,7 @@ export function announce(text) {
     const region = document.getElementById("srStatus");
     if (!region) return;
     region.textContent = "";
-    // 같은 문장을 연달아 보내도 다시 읽히도록 다음 프레임에 넣는다.
-    requestAnimationFrame(() => { region.textContent = text; });
+    // 같은 문장을 연달아 보내도 다시 읽히도록 잠시 뒤에 넣는다. requestAnimationFrame은
+    // 백그라운드 탭에서 멈추므로 쓰지 않는다.
+    setTimeout(() => { region.textContent = text; }, 50);
 }
