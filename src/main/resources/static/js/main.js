@@ -12,7 +12,7 @@ const VIEWS = {
     market: { title: "시장", refresh: refreshMarket, poll: 15000 },
     cases: { title: "사건", refresh: loadCases, poll: 60000 },
     insights: { title: "통계", refresh: refreshInsights, poll: 0 },
-    help: { title: "도움말", refresh: null, poll: 0 }
+    help: { title: "도움말", refresh: renderHelp, poll: 0 }
 };
 const GO_KEYS = { o: "overview", m: "market", c: "cases", s: "insights", h: "help" };
 

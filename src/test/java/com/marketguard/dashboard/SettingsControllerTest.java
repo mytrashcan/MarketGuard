@@ -32,7 +32,7 @@ class SettingsControllerTest {
     void exposesEveryRuleWithItsConfiguredThresholds() {
         DetectionSettingsView view = controller.detection();
 
-        assertThat(view.cooldownMinutes()).isEqualTo(10);
+        assertThat(view.cooldownMinutes()).isEqualByComparingTo("10");
         assertThat(view.rules()).extracting(DetectionSettingsView.Rule::ruleType)
                 .containsExactlyInAnyOrder(RuleType.values());
         DetectionSettingsView.Rule spike = rule(view, RuleType.PRICE_SPIKE);
@@ -43,18 +43,30 @@ class SettingsControllerTest {
         assertThat(rule(view, RuleType.INSTITUTIONAL_NET_BUY_SURGE).parameters().get(1).value())
                 .isEqualByComparingTo("1000");
         assertThat(rule(view, RuleType.INVESTMENT_WARNING).parameters()).isEmpty();
+        // 기관 수급은 공통 알림 간격(10분)이 아니라 자체 재알림 간격(6시간)을 쓴다.
+        assertThat(rule(view, RuleType.INSTITUTIONAL_NET_SELL_SURGE).parameters())
+                .filteredOn(parameter -> parameter.key().equals("reAlertMinutes"))
+                .singleElement().satisfies(parameter -> assertThat(parameter.value()).isEqualByComparingTo("360"));
     }
 
     @Test
     void reportsCaseGroupingAndEveryRuleWeight() {
         DetectionSettingsView.Cases cases = controller.detection().cases();
 
-        assertThat(cases.groupingWindowMinutes()).isEqualTo(10);
-        assertThat(cases.inactivityTimeoutMinutes()).isEqualTo(20);
+        assertThat(cases.groupingWindowMinutes()).isEqualByComparingTo("10");
+        assertThat(cases.inactivityTimeoutMinutes()).isEqualByComparingTo("20");
         assertThat(cases.highThreshold()).isEqualTo(60);
         assertThat(cases.ruleWeights()).hasSize(RuleType.values().length)
                 .contains(new DetectionSettingsView.Weight(RuleType.PRICE_SPIKE, 25),
                         new DetectionSettingsView.Weight(RuleType.PRICE_LIMIT, 0));
+    }
+
+    @Test
+    void keepsSecondsInsteadOfTruncatingToWholeMinutes() {
+        assertThat(SettingsController.minutes(Duration.ofSeconds(30))).isEqualByComparingTo("0.5");
+        assertThat(SettingsController.minutes(Duration.ofSeconds(90))).isEqualByComparingTo("1.5");
+        assertThat(SettingsController.minutes(Duration.ofMinutes(30))).isEqualByComparingTo("30");
+        assertThat(SettingsController.minutes(Duration.ofMillis(1_000))).isEqualByComparingTo("0.016667");
     }
 
     private static DetectionSettingsView.Rule rule(DetectionSettingsView view, RuleType type) {

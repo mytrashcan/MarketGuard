@@ -34,7 +34,7 @@ public class SettingsController {
                               SurveillanceProperties surveillance) {
         // 설정은 기동 후 바뀌지 않으므로 한 번만 만든다.
         this.settings = new DetectionSettingsView(
-                Duration.ofMillis(runtime.cooldownMs()).toMinutes(),
+                minutes(Duration.ofMillis(runtime.cooldownMs())),
                 rules(priceSpike, priceLimit, orderbook, volume, institutional),
                 cases(surveillance));
     }
@@ -71,14 +71,16 @@ public class SettingsController {
                 new Parameter("multiplier", "최근 중앙값 대비", properties.multiplier(), "배"),
                 new Parameter("minimumNetAmountEok", "최소 금액",
                         properties.minimumNetAmount().movePointLeft(8).stripTrailingZeros(), "억원"),
-                new Parameter("lookback", "비교할 직전 거래일", BigDecimal.valueOf(properties.lookback()), "일"));
+                new Parameter("lookback", "비교할 직전 거래일", BigDecimal.valueOf(properties.lookback()), "일"),
+                // 기관 수급은 종목 공통 알림 간격이 아니라 이 간격으로 같은 시장·방향 재알림을 막는다.
+                new Parameter("reAlertMinutes", "같은 시장·방향 재알림 간격", minutes(properties.cooldown()), "분"));
     }
 
     private static DetectionSettingsView.Cases cases(SurveillanceProperties properties) {
         return new DetectionSettingsView.Cases(
-                properties.groupingWindow().toMinutes(),
-                properties.inactivityTimeout().toMinutes(),
-                properties.reactivationWindow().toMinutes(),
+                minutes(properties.groupingWindow()),
+                minutes(properties.inactivityTimeout()),
+                minutes(properties.reactivationWindow()),
                 properties.simultaneousSignalBonus(),
                 properties.maxScore(),
                 properties.mediumThreshold(),
@@ -89,7 +91,10 @@ public class SettingsController {
                         .toList());
     }
 
-    private static BigDecimal minutes(Duration duration) {
-        return BigDecimal.valueOf(duration.toMinutes());
+    /** 초 단위를 잃지 않는 분 값(30초 → 0.5, 90초 → 1.5). 밀리초까지 보존한다. */
+    static BigDecimal minutes(Duration duration) {
+        return BigDecimal.valueOf(duration.toMillis())
+                .divide(BigDecimal.valueOf(60_000), 6, java.math.RoundingMode.HALF_UP)
+                .stripTrailingZeros();
     }
 }

@@ -7,10 +7,13 @@ import java.util.List;
 /**
  * 운영 중인 탐지·사건 설정. 화면이 "임계값을 넘었다"의 실제 기준을 보여줄 수 있도록 읽기 전용으로 내보낸다.
  *
- * @param cooldownMinutes 같은 종목·규칙 신호를 다시 알리기 전 최소 간격
+ * 시간 값은 초 단위를 잃지 않도록 소수 분(예: 30초 = 0.5)으로 내보낸다.
+ *
+ * @param cooldownMinutes 같은 종목·규칙 신호를 다시 알리기 전 최소 간격. 기관 수급 규칙은 자체 간격을 쓴다
+ *                        (규칙의 reAlertMinutes 설정값).
  */
 public record DetectionSettingsView(
-        long cooldownMinutes,
+        BigDecimal cooldownMinutes,
         List<Rule> rules,
         Cases cases
 ) {
@@ -28,9 +31,9 @@ public record DetectionSettingsView(
      * @param reactivationWindowMinutes 종결된 사건을 다시 여는 시간
      */
     public record Cases(
-            long groupingWindowMinutes,
-            long inactivityTimeoutMinutes,
-            long reactivationWindowMinutes,
+            BigDecimal groupingWindowMinutes,
+            BigDecimal inactivityTimeoutMinutes,
+            BigDecimal reactivationWindowMinutes,
             int simultaneousSignalBonus,
             int maxScore,
             int mediumThreshold,
