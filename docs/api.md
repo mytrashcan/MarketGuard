@@ -10,7 +10,7 @@ Production endpoints require HTTP Basic authentication by default. A loopback-on
 |---|---|
 | `page` | integer, at least 0 |
 | `size` | 1 to 100, default 25 |
-| `status` | `NEW`, `REVIEWING`, `WATCHING`, `DISMISSED`, `ESCALATED`, `CLOSED` |
+| `status` | One or more of `NEW`, `REVIEWING`, `WATCHING`, `DISMISSED`, `ESCALATED`, `CLOSED`, comma-separated or repeated (e.g. `status=NEW,REVIEWING`); matches any |
 | `ruleType` | a documented rule enum |
 | `severity` | `INFO`, `WARNING`, `CRITICAL` |
 | `stockCode` | exactly six digits, `KOSPI`, or `KOSDAQ` |
@@ -49,7 +49,8 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 | 401 | `AUTHENTICATION_REQUIRED` | supplied operator token is invalid or production authentication is missing |
 | 403 | — | CSRF token or configured loopback write authentication is missing |
 | 400 | `INVALID_REQUEST` | malformed, out-of-range, or invalid transition input |
-| 404 | `CASE_NOT_FOUND` | requested case/signal does not exist |
+| 404 | `CASE_NOT_FOUND` | requested case does not exist |
+| 404 | `ANOMALY_NOT_FOUND` | requested signal (`/api/anomalies/{id}`) does not exist |
 | 409 | `CASE_VERSION_CONFLICT` | optimistic version is stale |
 | 502 | `MARKET_DATA_UNAVAILABLE` | permanent upstream response failure |
 | 503 | `MARKET_DATA_UNAVAILABLE` | timeout, rate limit, or open circuit |

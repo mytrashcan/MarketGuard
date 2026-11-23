@@ -17,6 +17,7 @@ import com.marketguard.domain.casework.SurveillanceCase;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -46,7 +47,7 @@ class CaseControllerTest {
                 "평균의 4.9배", 25, AttentionLevel.LOW, 1,
                 Instant.parse("2026-07-15T01:00:00Z"), Instant.parse("2026-07-15T01:01:00Z"),
                 CaseStatus.NEW, List.of("장중"), 0L);
-        when(queryService.find(eq(CaseStatus.NEW), any(), any(), eq("005930"), any(), any(),
+        when(queryService.find(eq(Set.of(CaseStatus.NEW)), any(), any(), eq("005930"), any(), any(),
                 any(), any(), any())).thenReturn(new PageImpl<>(List.of(summary)));
 
         mockMvc.perform(get("/api/cases").queryParam("status", "NEW")
@@ -55,6 +56,18 @@ class CaseControllerTest {
                 .andExpect(jsonPath("$.content[0].stockName").value("삼성전자"))
                 .andExpect(jsonPath("$.content[0].score").value(25))
                 .andExpect(jsonPath("$.size").value(1));
+    }
+
+    @Test
+    void acceptsSeveralStatusesForTheOpenCaseQueue() throws Exception {
+        when(queryService.find(eq(Set.of(CaseStatus.NEW, CaseStatus.REVIEWING)), any(), any(), any(), any(), any(),
+                any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/cases").queryParam("status", "NEW,REVIEWING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(get("/api/cases").queryParam("status", "NOT_A_STATUS"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

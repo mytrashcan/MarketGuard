@@ -39,7 +39,7 @@ public class MarketRankingService {
             fixedDelayString = "${board.ranking-refresh-ms:15000}",
             initialDelayString = "${board.ranking-initial-delay-ms:0}")
     public synchronized void refreshAll() {
-        if (!hasCredentials()) {
+        if (!tossProps.hasCredentials()) {
             return;
         }
         List<String> symbols = new ArrayList<>();
@@ -55,10 +55,5 @@ public class MarketRankingService {
             }
         }
         stockReferenceService.refreshMissing(symbols.stream().distinct().toList());
-    }
-
-    private boolean hasCredentials() {
-        return tossProps.clientId() != null && !tossProps.clientId().isBlank()
-                && tossProps.clientSecret() != null && !tossProps.clientSecret().isBlank();
     }
 }

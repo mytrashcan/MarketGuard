@@ -58,7 +58,7 @@ public class StockReferenceService implements StockNameResolver {
     }
 
     private synchronized void refreshSymbols(List<String> symbols, boolean missingOnly) {
-        if (symbols.isEmpty() || !hasCredentials()) {
+        if (symbols.isEmpty() || !tossProps.hasCredentials()) {
             return;
         }
         // 종목명 API는 6자리 주식코드와 ETN/ETF(예: 0197W0)를 모두 지원한다.
@@ -75,10 +75,5 @@ public class StockReferenceService implements StockNameResolver {
                 log.warn("종목명 조회 실패({}종목): {}", chunk.size(), exception.getClass().getSimpleName());
             }
         }
-    }
-
-    private boolean hasCredentials() {
-        return tossProps.clientId() != null && !tossProps.clientId().isBlank()
-                && tossProps.clientSecret() != null && !tossProps.clientSecret().isBlank();
     }
 }

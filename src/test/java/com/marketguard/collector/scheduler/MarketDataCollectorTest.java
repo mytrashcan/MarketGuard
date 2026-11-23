@@ -5,8 +5,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.marketguard.alert.AnomalyNotifier;
-import com.marketguard.application.AnomalyRecordingService;
 import com.marketguard.collector.MarketSession;
 import com.marketguard.collector.SymbolUniverse;
 import com.marketguard.collector.client.TossMarketDataClient;
@@ -49,9 +47,8 @@ class MarketDataCollectorTest {
                 mock(SymbolUniverse.class),
                 mock(TossMarketDataClient.class),
                 mock(PriceSnapshotRepository.class),
-                mock(AnomalyRecordingService.class),
+                mock(AnomalyDispatcher.class),
                 mock(RuleEngine.class),
-                List.<AnomalyNotifier>of(),
                 Clock.systemUTC(),
                 observability,
                 new ScanProperties("", true),

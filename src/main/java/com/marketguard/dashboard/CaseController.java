@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import java.security.Principal;
 import java.time.Instant;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -38,7 +39,7 @@ public class CaseController {
 
     @GetMapping
     public PageView<CaseSummaryView> cases(
-            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(required = false) Set<CaseStatus> status,
             @RequestParam(required = false) RuleType ruleType,
             @RequestParam(required = false) Severity severity,
             @RequestParam(required = false)
@@ -59,7 +60,7 @@ public class CaseController {
             throw new IllegalArgumentException("minimumScore must not exceed maximumScore");
         }
         Sort.Direction order = "asc".equals(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return PageView.from(queryService.find(status, ruleType, severity, stockCode, from, to,
+        return PageView.from(queryService.find(status == null ? Set.of() : status, ruleType, severity, stockCode, from, to,
                 minimumScore, maximumScore, PageRequest.of(page, size, Sort.by(order, sort))));
     }
 

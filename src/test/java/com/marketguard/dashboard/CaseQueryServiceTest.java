@@ -17,6 +17,7 @@ import com.marketguard.domain.casework.SurveillanceCaseRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
@@ -52,7 +53,7 @@ class CaseQueryServiceTest {
         CaseQueryService service = new CaseQueryService(caseRepository, anomalyRepository,
                 noteRepository, historyRepository, nameResolver, properties());
 
-        CaseSummaryView result = service.find(null, null, null, null,
+        CaseSummaryView result = service.find(Set.of(), null, null, null,
                 null, null, null, null, pageable).getContent().get(0);
 
         assertThat(result.stockName()).isEqualTo("삼성전자");

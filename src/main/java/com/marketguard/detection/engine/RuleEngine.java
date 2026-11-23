@@ -2,12 +2,14 @@ package com.marketguard.detection.engine;
 
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.DetectionContext;
+import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.rule.DetectionRule;
+import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.time.Duration;
 
 /**
  * 등록된 모든 탐지 룰을 한 종목 컨텍스트에 대해 평가한다.
@@ -26,8 +28,8 @@ public class RuleEngine {
 
     public RuleEngine(List<DetectionRule> rules, RuleEvaluationObserver observer) {
         this.rules = List.copyOf(rules);
-        this.observer = java.util.Objects.requireNonNull(observer, "observer must not be null");
-        Set<com.marketguard.detection.model.RuleType> distinctTypes = this.rules.stream()
+        this.observer = Objects.requireNonNull(observer, "observer must not be null");
+        Set<RuleType> distinctTypes = this.rules.stream()
                 .map(DetectionRule::type)
                 .collect(Collectors.toSet());
         if (distinctTypes.size() != this.rules.size()) {

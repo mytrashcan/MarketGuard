@@ -44,6 +44,12 @@ public class ApiExceptionHandler {
                 .body(new ApiError("CASE_NOT_FOUND", "The requested case was not found"));
     }
 
+    @ExceptionHandler(AnomalyNotFoundException.class)
+    ResponseEntity<ApiError> anomalyNotFound(AnomalyNotFoundException ignored) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError("ANOMALY_NOT_FOUND", "The requested anomaly was not found"));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseEntity<ApiError> resourceNotFound(NoResourceFoundException ignored) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

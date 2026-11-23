@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -207,7 +208,7 @@ class PriceSnapshotRepositoryIntegrationTest {
         assertThat(grouped.getScore()).isEqualTo(60);
         assertThat(anomalyRepository.findByCaseIdOrderByDetectedAtAsc(grouped.getId())).hasSize(2);
 
-        var filtered = caseQueryService.find(CaseStatus.NEW, RuleType.VOLUME_SURGE, Severity.WARNING,
+        var filtered = caseQueryService.find(Set.of(CaseStatus.NEW), RuleType.VOLUME_SURGE, Severity.WARNING,
                 "005930", firstAt, firstAt.plusSeconds(180), 50, 70,
                 PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "lastDetectedAt")));
         assertThat(filtered.getTotalElements()).isEqualTo(1);

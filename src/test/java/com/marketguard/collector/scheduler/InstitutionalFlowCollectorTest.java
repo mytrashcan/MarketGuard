@@ -59,8 +59,7 @@ class InstitutionalFlowCollectorTest {
                 FLOW_PROPERTIES,
                 client,
                 detector,
-                recordingService,
-                List.of(notifier),
+                new AnomalyDispatcher(recordingService, List.of(notifier), observability),
                 observability,
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
@@ -83,8 +82,7 @@ class InstitutionalFlowCollectorTest {
                 FLOW_PROPERTIES,
                 client,
                 detector,
-                recordingService,
-                List.of(),
+                new AnomalyDispatcher(recordingService, List.of(), mock(CollectorObservability.class)),
                 mock(CollectorObservability.class),
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
@@ -110,8 +108,7 @@ class InstitutionalFlowCollectorTest {
                 FLOW_PROPERTIES,
                 client,
                 detector,
-                recordingService,
-                List.of(notifier),
+                new AnomalyDispatcher(recordingService, List.of(notifier), mock(CollectorObservability.class)),
                 mock(CollectorObservability.class),
                 Clock.fixed(NOW, ZoneOffset.UTC));
 

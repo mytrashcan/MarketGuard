@@ -54,11 +54,8 @@ public class BoardDataService {
      * API 키가 없거나 watch-list가 비면 빈 목록.
      */
     public List<BoardItem> currentBoard() {
-        if (tossProps.clientId() == null || tossProps.clientId().isBlank()) {
-            return List.of();
-        }
-        List<String> board = tossProps.watchList();
-        if (board == null || board.isEmpty()) {
+        List<String> board = boardSymbols();
+        if (board.isEmpty()) {
             return List.of();
         }
         Map<String, BigDecimal> live = new HashMap<>();
@@ -77,11 +74,8 @@ public class BoardDataService {
 
     @Scheduled(fixedDelayString = "${board.detail-refresh-ms}")
     public void refresh() {
-        if (tossProps.clientId() == null || tossProps.clientId().isBlank()) {
-            return;   // API 키 없으면 건너뜀
-        }
-        List<String> board = tossProps.watchList();
-        if (board == null || board.isEmpty()) {
+        List<String> board = boardSymbols();
+        if (board.isEmpty()) {
             return;
         }
         stockReferenceService.refreshMissing(board);
@@ -93,6 +87,11 @@ public class BoardDataService {
                 log.debug("[{}] 보드 상세 갱신 실패: {}", symbol, e.getClass().getSimpleName());
             }
         }
+    }
+
+    /** API 키가 없으면 외부 호출을 하지 않도록 빈 목록을 돌려준다. */
+    private List<String> boardSymbols() {
+        return tossProps.hasCredentials() ? tossProps.watchList() : List.of();
     }
 
     private Detail fetchDetail(String symbol, MarketRankingQuote ranking) {

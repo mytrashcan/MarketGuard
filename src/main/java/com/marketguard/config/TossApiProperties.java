@@ -22,4 +22,10 @@ public record TossApiProperties(
     public TossApiProperties {
         watchList = watchList == null ? List.of() : List.copyOf(watchList);
     }
+
+    /** 시세 조회에 필요한 client id/secret이 모두 설정됐는지. 없으면 외부 호출을 건너뛴다. */
+    public boolean hasCredentials() {
+        return clientId != null && !clientId.isBlank()
+                && clientSecret != null && !clientSecret.isBlank();
+    }
 }
