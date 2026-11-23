@@ -29,3 +29,7 @@ SET outcome_status = CASE WHEN stock_code IN ('KOSPI', 'KOSDAQ') THEN 'NOT_APPLI
     outcome_measured_at = now();
 
 CREATE INDEX idx_anomaly_outcome_pending ON anomaly_record (detected_at) WHERE outcome_status IS NULL;
+
+-- The market benchmark reads every stock's price in a short time window; without this the range scan
+-- over captured_at alone cannot use idx_snapshot_code_time. The cleanup job's delete by captured_at also benefits.
+CREATE INDEX idx_snapshot_captured_at ON price_snapshot (captured_at);

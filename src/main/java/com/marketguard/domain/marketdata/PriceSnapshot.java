@@ -22,7 +22,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
         name = "price_snapshot",
-        indexes = @Index(name = "idx_snapshot_code_time", columnList = "stockCode, capturedAt")
+        indexes = {
+                @Index(name = "idx_snapshot_code_time", columnList = "stockCode, capturedAt"),
+                @Index(name = "idx_snapshot_captured_at", columnList = "capturedAt")
+        }
 )
 public class PriceSnapshot {
 
