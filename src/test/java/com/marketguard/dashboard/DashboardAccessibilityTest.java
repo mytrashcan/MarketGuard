@@ -32,6 +32,14 @@ class DashboardAccessibilityTest {
     }
 
     @Test
+    void closingACaseCancelsItsPendingFocusAndAnnouncement() {
+        String close = DashboardSources.script("cases.js")
+                .split("export function closeCaseDetail\\(\\) \\{", 2)[1].split("\n}", 2)[0];
+
+        assertThat(close).contains("state.detailRequest++;", "state.focusCaseIdPending = null;");
+    }
+
+    @Test
     void announcesFailuresOfUserRequests() {
         String cases = DashboardSources.script("cases.js");
 

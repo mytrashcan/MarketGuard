@@ -183,6 +183,9 @@ export async function openCase(id, { userOpened = false } = {}) {
 }
 
 export function closeCaseDetail() {
+    // 아직 도착하지 않은 사건 응답이 닫은 뒤에 화면을 그리거나 포커스·알림을 가져가지 않게 무효화한다.
+    state.detailRequest++;
+    state.focusCaseIdPending = null;
     state.selectedId = null;
     document.querySelectorAll("[data-case-id]").forEach(row => row.setAttribute("aria-current", "false"));
     $("casesLayout").classList.remove("showing-detail");
