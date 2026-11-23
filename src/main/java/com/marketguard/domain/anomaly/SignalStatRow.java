@@ -20,8 +20,14 @@ public record SignalStatRow(
         Boolean outcomeFollowedDirection,
         BigDecimal outcomeMarketChangePercent,
         BigDecimal outcomeExcessChangePercent,
-        Boolean outcomeFollowedAfterMarket
+        Boolean outcomeFollowedAfterMarket,
+        Integer outcomeHorizonMinutes
 ) {
+    /** 다른 측정 기준(horizon)으로 잰 결과인지. 측정 전이거나 기준이 기록되지 않았으면 false. */
+    public boolean measuredWithOtherHorizon(long horizonMinutes) {
+        return outcomeStatus != null && outcomeHorizonMinutes != null && outcomeHorizonMinutes != horizonMinutes;
+    }
+
     /** 측정 전이면 null. */
     public SignalOutcome outcome() {
         return outcomeStatus == null ? null : new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice,

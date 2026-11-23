@@ -18,6 +18,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.List;
@@ -136,6 +137,9 @@ public class AnomalyRecord {
 
     private Boolean outcomeFollowedAfterMarket;
 
+    /** 결과를 잰 기준(신호 후 몇 분). 설정이 바뀌어도 서로 다른 기준의 결과를 섞지 않기 위해 남긴다. */
+    private Integer outcomeHorizonMinutes;
+
     private Instant outcomeMeasuredAt;
 
     public AnomalyRecord(String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt) {
@@ -183,7 +187,7 @@ public class AnomalyRecord {
         return Anomaly.explained(stockCode, ruleType, severity, message, detectedAt, evidence);
     }
 
-    public void recordOutcome(SignalOutcome outcome, Instant measuredAt) {
+    public void recordOutcome(SignalOutcome outcome, Duration horizon, Instant measuredAt) {
         this.outcomeStatus = outcome.status();
         this.outcomeBasePrice = outcome.basePrice();
         this.outcomePrice = outcome.outcomePrice();
@@ -192,6 +196,7 @@ public class AnomalyRecord {
         this.outcomeMarketChangePercent = outcome.marketChangePercent();
         this.outcomeExcessChangePercent = outcome.excessChangePercent();
         this.outcomeFollowedAfterMarket = outcome.followedAfterMarket();
+        this.outcomeHorizonMinutes = Math.toIntExact(horizon.toMinutes());
         this.outcomeMeasuredAt = measuredAt;
     }
 

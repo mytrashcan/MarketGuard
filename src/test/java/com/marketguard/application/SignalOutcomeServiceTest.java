@@ -58,6 +58,7 @@ class SignalOutcomeServiceTest {
         assertThat(record.getOutcomeStatus()).isEqualTo(OutcomeStatus.MEASURED);
         assertThat(record.getOutcomeChangePercent()).isEqualByComparingTo("2");
         assertThat(record.getOutcomeMeasuredAt()).isEqualTo(NOW);
+        assertThat(record.getOutcomeHorizonMinutes()).isEqualTo(30);
     }
 
     @Test

@@ -9,6 +9,7 @@ ALTER TABLE anomaly_record
     ADD COLUMN outcome_market_change_percent NUMERIC(30, 8),
     ADD COLUMN outcome_excess_change_percent NUMERIC(30, 8),
     ADD COLUMN outcome_followed_after_market BOOLEAN,
+    ADD COLUMN outcome_horizon_minutes INTEGER,
     ADD COLUMN outcome_measured_at TIMESTAMPTZ,
     ADD CONSTRAINT chk_anomaly_outcome_status CHECK (
         outcome_status IS NULL OR outcome_status IN ('MEASURED', 'NO_PRICE_DATA', 'NOT_APPLICABLE')
@@ -18,7 +19,8 @@ ALTER TABLE anomaly_record
         outcome_status IS DISTINCT FROM 'MEASURED'
         OR (outcome_base_price IS NOT NULL AND outcome_base_price > 0
             AND outcome_price IS NOT NULL AND outcome_price > 0
-            AND outcome_change_percent IS NOT NULL)
+            AND outcome_change_percent IS NOT NULL
+            AND outcome_horizon_minutes IS NOT NULL AND outcome_horizon_minutes > 0)
     );
 
 -- Signals recorded before this migration have no retained snapshots to measure against.

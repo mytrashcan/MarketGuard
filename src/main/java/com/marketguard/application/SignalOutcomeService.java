@@ -68,7 +68,7 @@ public class SignalOutcomeService {
                 anomalyRepository.findTop200ByOutcomeStatusIsNullAndDetectedAtBeforeOrderByDetectedAtAsc(cutoff);
         // 같은 분에 나온 신호는 같은 시장 기준을 쓰므로 한 번만 계산한다.
         Map<Instant, Optional<BigDecimal>> benchmarks = new HashMap<>();
-        pending.forEach(record -> record.recordOutcome(measure(record, benchmarks), now));
+        pending.forEach(record -> record.recordOutcome(measure(record, benchmarks), properties.horizon(), now));
         if (!pending.isEmpty()) {
             log.debug("신호 결과 {}건 측정", pending.size());
         }

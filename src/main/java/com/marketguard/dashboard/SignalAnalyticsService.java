@@ -45,8 +45,9 @@ public class SignalAnalyticsService {
         LocalDate to = LocalDate.ofInstant(now, KST);
         LocalDate from = to.minusDays(days - 1L);
         List<SignalStatRow> rows = anomalyRepository.findStatRows(from.atStartOfDay(KST).toInstant(), now);
-        return new SignalAnalyticsView(days, from, to, outcomeProperties.horizon().toMinutes(), rows.size(),
-                daily(rows, from, to), rules(rows), coverage(rows));
+        long horizon = outcomeProperties.horizon().toMinutes();
+        return new SignalAnalyticsView(days, from, to, horizon, rows.size(),
+                daily(rows, from, to), rules(rows, horizon), coverage(rows, horizon));
     }
 
     private static List<SignalAnalyticsView.Day> daily(List<SignalStatRow> rows, LocalDate from, LocalDate to) {
@@ -62,13 +63,18 @@ public class SignalAnalyticsService {
         return days;
     }
 
-    private static List<SignalAnalyticsView.Rule> rules(List<SignalStatRow> rows) {
+    /** 현재 horizon으로 잰 결과만 쓴다. 다른 기준의 결과는 신호 수에는 넣되 측정되지 않은 것으로 본다. */
+    private static SignalOutcome currentOutcome(SignalStatRow row, long horizon) {
+        return row.measuredWithOtherHorizon(horizon) ? null : row.outcome();
+    }
+
+    private static List<SignalAnalyticsView.Rule> rules(List<SignalStatRow> rows, long horizon) {
         return rows.stream()
                 .collect(Collectors.groupingBy(SignalStatRow::ruleType))
                 .entrySet().stream()
                 .map(entry -> {
                     OutcomeStatistics statistics = OutcomeStatistics.of(
-                            entry.getValue().stream().map(SignalStatRow::outcome).toList());
+                            entry.getValue().stream().map(row -> currentOutcome(row, horizon)).toList());
                     return new SignalAnalyticsView.Rule(entry.getKey(), statistics.signals(), statistics.measured(),
                             statistics.followed(), statistics.medianAbsChangePercent(),
                             statistics.followedAfterMarket());
@@ -78,14 +84,16 @@ public class SignalAnalyticsService {
                 .toList();
     }
 
-    private static SignalAnalyticsView.Coverage coverage(List<SignalStatRow> rows) {
+    private static SignalAnalyticsView.Coverage coverage(List<SignalStatRow> rows, long horizon) {
         Map<OutcomeStatus, Long> counts = rows.stream()
-                .map(SignalStatRow::outcome)
+                .map(row -> currentOutcome(row, horizon))
                 .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(SignalOutcome::status, Collectors.counting()));
         long pending = rows.stream().map(SignalStatRow::outcome).filter(Objects::isNull).count();
+        long otherHorizon = rows.stream().filter(row -> row.measuredWithOtherHorizon(horizon)).count();
         Function<OutcomeStatus, Long> count = status -> counts.getOrDefault(status, 0L);
         return new SignalAnalyticsView.Coverage(count.apply(OutcomeStatus.MEASURED),
-                count.apply(OutcomeStatus.NO_PRICE_DATA), count.apply(OutcomeStatus.NOT_APPLICABLE), pending);
+                count.apply(OutcomeStatus.NO_PRICE_DATA), count.apply(OutcomeStatus.NOT_APPLICABLE), pending,
+                otherHorizon);
     }
 }

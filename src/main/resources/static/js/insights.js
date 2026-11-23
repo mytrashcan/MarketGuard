@@ -15,6 +15,7 @@ const OUTCOME_LABELS = { SUCCESS: "성공", FAILURE: "실패" };
 /** 표본이 이보다 적으면 신뢰구간이 너무 넓어 판단하지 않는다. */
 const MIN_SAMPLES = 10;
 let measureDays = 14;
+let measureRequest = 0;
 
 export function initInsights() {
     $("measureDays").addEventListener("click", event => {
@@ -77,8 +78,11 @@ function renderVolume(daily) {
 async function loadMeasurement() {
     const body = $("ruleOutcomes");
     if (!body.children.length) body.innerHTML = fullRow(7, loadingLine());
+    // 기간을 빠르게 바꾸면 늦게 도착한 이전 응답이 화면을 덮지 않도록 마지막 요청만 반영한다.
+    const request = ++measureRequest;
     try {
         const view = await api.signalAnalytics(measureDays);
+        if (request !== measureRequest) return;
         const coverage = view.coverage;
         const unmeasured = coverage.noPriceData + coverage.notApplicable;
         $("mTotal").textContent = fmtNumber(view.totalSignals);
@@ -102,8 +106,12 @@ async function loadMeasurement() {
             `50%면 우연과 같습니다. 시장 대비는 같은 ${view.horizonMinutes}분 동안 스캔 종목 변동률의 중앙값을 뺀 뒤의 지속률로, ` +
             `시장 전체 흐름에 올라탄 신호를 걸러냅니다(지수가 아닌 동일 가중 기준). ` +
             `작은 숫자는 95% 신뢰구간이며, 구간 전체가 50%보다 위나 아래일 때만 결론을 냅니다(표본 ${MIN_SAMPLES}건 미만은 판단하지 않음). ` +
-            `장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.`;
+            `장 마감 직전 신호와 시장 전체 신호는 측정하지 못합니다.` +
+            (coverage.otherHorizon
+                ? ` 측정 기준(horizon)이 바뀌기 전에 잰 결과 ${fmtNumber(coverage.otherHorizon)}건은 섞지 않고 제외했습니다.`
+                : "");
     } catch (error) {
+        if (request !== measureRequest) return;
         body.innerHTML = fullRow(7, errorLine("신호 측정 결과를 불러오지 못했습니다.", error));
     }
 }

@@ -43,6 +43,9 @@ public record SignalAnalyticsView(
     ) {
     }
 
-    public record Coverage(long measured, long noPriceData, long notApplicable, long pending) {
+    /**
+     * @param otherHorizon 현재와 다른 horizon으로 잰 결과. 섞지 않도록 규칙별 통계에서 제외한다.
+     */
+    public record Coverage(long measured, long noPriceData, long notApplicable, long pending, long otherHorizon) {
     }
 }

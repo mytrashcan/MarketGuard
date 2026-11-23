@@ -76,7 +76,27 @@ class SignalAnalyticsServiceTest {
         // +1.5%(상승 신호, 지속) - 시장 0.5% = +1.0% → 여전히 지속, -0.5%(반대) - 0.5% = -1.0% → 반대
         assertThat(spike.followedAfterMarket().samples()).isEqualTo(2);
         assertThat(spike.followedAfterMarket().ratePercent()).isEqualByComparingTo("50");
-        assertThat(view.coverage()).isEqualTo(new SignalAnalyticsView.Coverage(2, 1, 1, 1));
+        assertThat(view.coverage()).isEqualTo(new SignalAnalyticsView.Coverage(2, 1, 1, 1, 0));
+    }
+
+    @Test
+    void keepsResultsMeasuredWithAnotherHorizonOutOfTheRuleStatistics() {
+        SignalStatRow current = row(RuleType.PRICE_SPIKE, Severity.WARNING, "005930", "2026-07-31T00:00:00Z",
+                OutcomeStatus.MEASURED, measured("1.5", true));
+        SignalStatRow oldHorizon = new SignalStatRow(RuleType.PRICE_SPIKE, Severity.WARNING, "005930",
+                Instant.parse("2026-07-31T00:10:00Z"), OutcomeStatus.MEASURED, new BigDecimal("100"),
+                new BigDecimal("98"), new BigDecimal("-2"), false, null, null, null, 60);
+        when(repository.findStatRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(current, oldHorizon));
+
+        SignalAnalyticsView view = service.summarize(1);
+
+        SignalAnalyticsView.Rule spike = view.rules().get(0);
+        assertThat(spike.signals()).isEqualTo(2);
+        assertThat(spike.measured()).isEqualTo(1);
+        assertThat(spike.followed().ratePercent()).isEqualByComparingTo("100");
+        assertThat(view.coverage().otherHorizon()).isEqualTo(1);
+        assertThat(view.coverage().measured()).isEqualTo(1);
     }
 
     private static Object[] measured(String change, boolean followed) {
@@ -94,6 +114,6 @@ class SignalAnalyticsServiceTest {
         Boolean followedAfterMarket = excess == null || excess.signum() == 0 ? null
                 : (excess.signum() > 0) == (followed == change.signum() > 0);
         return new SignalStatRow(rule, severity, code, Instant.parse(at), status, base, outcome, change, followed,
-                market, excess, followedAfterMarket);
+                market, excess, followedAfterMarket, status == null ? null : 30);
     }
 }
