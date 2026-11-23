@@ -7,9 +7,9 @@ import com.marketguard.collector.MarketRankingType;
 import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
-import com.marketguard.detection.model.Severity;
 import com.marketguard.domain.anomaly.AnomalyCountRepository;
 import com.marketguard.domain.anomaly.AnomalyRepository;
+import com.marketguard.domain.anomaly.SignalCount;
 import com.marketguard.domain.audit.AuditLogRepository;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import jakarta.validation.constraints.Max;
@@ -103,8 +103,8 @@ public class DashboardController {
     @GetMapping("/anomalies/count")
     public SignalCountView countAnomalies(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since) {
-        return new SignalCountView(since, anomalyCountRepository.countByDetectedAtGreaterThanEqual(since),
-                anomalyCountRepository.countByDetectedAtGreaterThanEqualAndSeverity(since, Severity.CRITICAL));
+        SignalCount count = anomalyCountRepository.countSince(since);
+        return new SignalCountView(since, count.signals(), count.critical());
     }
 
     /** 구조화된 근거를 포함한 단일 탐지 상세. */

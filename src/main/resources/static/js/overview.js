@@ -91,11 +91,19 @@ function renderSignals(freshCount = 0) {
     ).join("");
 }
 
-/** 실시간 알림 한 건을 피드 맨 앞에 붙이고, 오늘 신호면 개수도 올린다. */
+/**
+ * 실시간 알림 한 건을 피드 맨 앞에 붙이고, 오늘 신호면 개수도 올린다.
+ * 자정(KST)이 지났으면 어제 개수에 더하지 않고 오늘 개수를 다시 불러온다.
+ */
 export function pushSignal(notification) {
     recentSignals.unshift({ ...notification, summary: notification.message });
     recentSignals = recentSignals.slice(0, FEED_SIZE);
-    if (todayCount.since && Date.parse(notification.detectedAt) >= Date.parse(todayCount.since)) {
+    if (todayCount.since !== startOfTodayKst()) {
+        renderSignals(1);
+        loadSignals();
+        return;
+    }
+    if (Date.parse(notification.detectedAt) >= Date.parse(todayCount.since)) {
         todayCount = {
             ...todayCount,
             signals: todayCount.signals + 1,
