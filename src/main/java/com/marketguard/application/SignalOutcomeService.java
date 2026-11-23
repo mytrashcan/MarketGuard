@@ -12,13 +12,13 @@ import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import com.marketguard.domain.marketdata.SnapshotPrice;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -66,16 +66,16 @@ public class SignalOutcomeService {
         Instant cutoff = now.minus(properties.horizon()).minus(properties.matchWindow());
         List<AnomalyRecord> pending =
                 anomalyRepository.findTop200ByOutcomeStatusIsNullAndDetectedAtBeforeOrderByDetectedAtAsc(cutoff);
-        // 같은 분에 나온 신호는 같은 시장 기준을 쓰므로 한 번만 계산한다.
-        Map<Instant, Optional<BigDecimal>> benchmarks = new HashMap<>();
-        pending.forEach(record -> record.recordOutcome(measure(record, benchmarks), properties.horizon(), now));
+        // 같은 분에 나온 신호들의 가격 행은 한 번만 읽고, 신호마다 정확한 구간으로 다시 거른다.
+        Map<Instant, MinuteRows> rows = new HashMap<>();
+        pending.forEach(record -> record.recordOutcome(measure(record, rows), properties.horizon(), now));
         if (!pending.isEmpty()) {
             log.debug("신호 결과 {}건 측정", pending.size());
         }
         return pending.size();
     }
 
-    SignalOutcome measure(AnomalyRecord record, Map<Instant, Optional<BigDecimal>> benchmarks) {
+    SignalOutcome measure(AnomalyRecord record, Map<Instant, MinuteRows> rows) {
         if (!STOCK_SYMBOL.matcher(record.getStockCode()).matches()) {
             return SignalOutcome.notApplicable();
         }
@@ -92,20 +92,33 @@ public class SignalOutcomeService {
         if (basePrice == null || outcomePrice == null) {
             return calculator.measure(record.getDirection(), basePrice, outcomePrice);
         }
-        BigDecimal market = benchmarks
-                .computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), minute -> Optional.ofNullable(marketChange(minute)))
-                .orElse(null);
+        MinuteRows minuteRows = rows.computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), this::minuteRows);
+        BigDecimal market = benchmark.medianChangePercent(
+                latestPerStock(within(minuteRows.base(), signalAt.minus(properties.matchWindow()), signalAt)),
+                earliestPerStock(within(minuteRows.outcome(), target, target.plus(properties.matchWindow()))));
         return calculator.measure(record.getDirection(), basePrice, outcomePrice, market);
     }
 
-    /** minute부터 horizon 동안 스캔 종목 변동률의 중앙값. 종목마다 구간 시작 직전·끝 직후 가격을 쓴다. */
-    private BigDecimal marketChange(Instant minute) {
-        Instant end = minute.plus(properties.horizon());
-        Map<String, BigDecimal> base = latestPerStock(
-                snapshotRepository.findPricesBetween(minute.minus(properties.matchWindow()), minute));
-        Map<String, BigDecimal> outcome = earliestPerStock(
-                snapshotRepository.findPricesBetween(end, end.plus(properties.matchWindow())));
-        return benchmark.medianChangePercent(base, outcome);
+    /**
+     * minute로 시작하는 1분 안의 어떤 신호든 쓸 수 있도록 넉넉히 읽은 가격 행.
+     * 시장 기준은 신호 종목과 같은 정확한 구간(신호 시각 기준)으로 다시 걸러 쓴다.
+     */
+    record MinuteRows(List<SnapshotPrice> base, List<SnapshotPrice> outcome) {
+    }
+
+    private MinuteRows minuteRows(Instant minute) {
+        Instant nextMinute = minute.plus(Duration.ofMinutes(1));
+        Instant outcomeStart = minute.plus(properties.horizon());
+        return new MinuteRows(
+                snapshotRepository.findPricesBetween(minute.minus(properties.matchWindow()), nextMinute),
+                snapshotRepository.findPricesBetween(outcomeStart,
+                        nextMinute.plus(properties.horizon()).plus(properties.matchWindow())));
+    }
+
+    private static List<SnapshotPrice> within(List<SnapshotPrice> prices, Instant from, Instant to) {
+        return prices.stream()
+                .filter(price -> !price.capturedAt().isBefore(from) && !price.capturedAt().isAfter(to))
+                .toList();
     }
 
     private static Map<String, BigDecimal> latestPerStock(List<SnapshotPrice> prices) {

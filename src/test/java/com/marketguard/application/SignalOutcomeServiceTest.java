@@ -72,16 +72,21 @@ class SignalOutcomeServiceTest {
         when(snapshots.findFirstByStockCodeAndCapturedAtBetweenOrderByCapturedAtAsc(eq("005930"), any(), any()))
                 .thenReturn(Optional.of(new PriceSnapshot("005930", new BigDecimal("103"), target)));
         // 시장: 세 종목이 각각 +1%, +2%, +3% → 중앙값 +2%. 종목별로 시작 직전·끝 직후 가격을 쓴다.
-        when(snapshots.findPricesBetween(SIGNAL_AT.minus(Duration.ofMinutes(3)), SIGNAL_AT)).thenReturn(List.of(
-                new SnapshotPrice("A", new BigDecimal("90"), SIGNAL_AT.minusSeconds(60)),
-                new SnapshotPrice("A", new BigDecimal("100"), SIGNAL_AT.minusSeconds(10)),
-                new SnapshotPrice("B", new BigDecimal("100"), SIGNAL_AT),
-                new SnapshotPrice("C", new BigDecimal("100"), SIGNAL_AT)));
-        when(snapshots.findPricesBetween(target, target.plus(Duration.ofMinutes(3)))).thenReturn(List.of(
+        // 같은 분의 다른 신호도 쓰도록 1분 넉넉히 읽지만, 이 신호의 정확한 구간 밖 행(신호 뒤 가격,
+        // 측정 시점 전 가격)은 쓰지 않아야 한다.
+        when(snapshots.findPricesBetween(SIGNAL_AT.minus(Duration.ofMinutes(3)), SIGNAL_AT.plus(Duration.ofMinutes(1))))
+                .thenReturn(List.of(
+                        new SnapshotPrice("A", new BigDecimal("90"), SIGNAL_AT.minusSeconds(60)),
+                        new SnapshotPrice("A", new BigDecimal("100"), SIGNAL_AT.minusSeconds(10)),
+                        new SnapshotPrice("A", new BigDecimal("50"), SIGNAL_AT.plusSeconds(30)),
+                        new SnapshotPrice("B", new BigDecimal("100"), SIGNAL_AT),
+                        new SnapshotPrice("C", new BigDecimal("100"), SIGNAL_AT)));
+        when(snapshots.findPricesBetween(target, target.plus(Duration.ofMinutes(4)))).thenReturn(List.of(
                 new SnapshotPrice("A", new BigDecimal("101"), target.plusSeconds(10)),
                 new SnapshotPrice("A", new BigDecimal("150"), target.plusSeconds(60)),
                 new SnapshotPrice("B", new BigDecimal("102"), target),
-                new SnapshotPrice("C", new BigDecimal("103"), target)));
+                new SnapshotPrice("C", new BigDecimal("103"), target),
+                new SnapshotPrice("C", new BigDecimal("500"), target.plus(Duration.ofMinutes(3)).plusSeconds(30))));
 
         service.measurePending();
 
