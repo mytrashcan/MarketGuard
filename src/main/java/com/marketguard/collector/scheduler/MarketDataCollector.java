@@ -1,7 +1,5 @@
 package com.marketguard.collector.scheduler;
 
-import com.marketguard.alert.AnomalyNotifier;
-import com.marketguard.application.AnomalyRecordingService;
 import com.marketguard.collector.MarketSession;
 import com.marketguard.collector.SymbolUniverse;
 import com.marketguard.collector.client.TossMarketDataClient;
@@ -10,7 +8,6 @@ import com.marketguard.config.DetectionRuntimeProperties;
 import com.marketguard.config.ScanProperties;
 import com.marketguard.config.TossApiProperties;
 import com.marketguard.detection.engine.RuleEngine;
-import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.Candle;
 import com.marketguard.detection.model.DetectionContext;
 import com.marketguard.detection.model.MarketPrice;
@@ -52,11 +49,10 @@ public class MarketDataCollector {
     private final SymbolUniverse symbolUniverse;
     private final TossMarketDataClient marketDataClient;
     private final PriceSnapshotRepository snapshotRepository;
-    private final AnomalyRecordingService anomalyRecordingService;
+    private final AnomalyDispatcher dispatcher;
     private final RuleEngine ruleEngine;
-    private final List<AnomalyNotifier> notifiers;
     private final boolean marketHoursOnly;
-    private final long cooldownMs;
+    private final Duration cooldown;
     private final Clock clock;
     private final CollectorObservability observability;
     private final AtomicBoolean running = new AtomicBoolean();
@@ -67,9 +63,8 @@ public class MarketDataCollector {
                                SymbolUniverse symbolUniverse,
                                TossMarketDataClient marketDataClient,
                                PriceSnapshotRepository snapshotRepository,
-                               AnomalyRecordingService anomalyRecordingService,
+                               AnomalyDispatcher dispatcher,
                                RuleEngine ruleEngine,
-                               List<AnomalyNotifier> notifiers,
                                Clock clock,
                                CollectorObservability observability,
                                ScanProperties scanProperties,
@@ -80,13 +75,12 @@ public class MarketDataCollector {
         this.symbolUniverse = symbolUniverse;
         this.marketDataClient = marketDataClient;
         this.snapshotRepository = snapshotRepository;
-        this.anomalyRecordingService = anomalyRecordingService;
+        this.dispatcher = dispatcher;
         this.ruleEngine = ruleEngine;
-        this.notifiers = List.copyOf(notifiers);
         this.clock = clock;
         this.observability = observability;
         this.marketHoursOnly = scanProperties.marketHoursOnly();
-        this.cooldownMs = detectionProperties.cooldownMs();
+        this.cooldown = Duration.ofMillis(detectionProperties.cooldownMs());
     }
 
     @Scheduled(fixedDelayString = "${collector.poll-interval-ms}")
@@ -107,25 +101,14 @@ public class MarketDataCollector {
                 return;
             }
 
-            Set<String> focus = new LinkedHashSet<>(
-                    tossProps.watchList() == null ? List.of() : tossProps.watchList());
-
+            Set<String> focus = focusSymbols();
             List<String> broad = symbolUniverse.all().stream()
                     .filter(symbol -> !focus.contains(symbol))
                     .toList();
             for (List<String> chunk : SymbolUniverse.chunk(broad, SymbolUniverse.MAX_PER_REQUEST)) {
-                List<MarketPrice> prices = fetchPrices(chunk);
-                observability.recordProcessedPrices(prices.size(), false);
-                for (MarketPrice snapshot : prices) {
-                    process(snapshot, false);
-                }
+                scanBatch(chunk, false);
             }
-
-            List<MarketPrice> focusPrices = fetchPrices(List.copyOf(focus));
-            observability.recordProcessedPrices(focusPrices.size(), true);
-            for (MarketPrice snapshot : focusPrices) {
-                process(snapshot, true);
-            }
+            scanBatch(List.copyOf(focus), true);
         } catch (RuntimeException exception) {
             outcome = "failure";
             log.error("Collector scan failed ({})", exception.getClass().getSimpleName());
@@ -133,6 +116,17 @@ public class MarketDataCollector {
             observability.finishScan(sample, outcome);
             running.set(false);
         }
+    }
+
+    private Set<String> focusSymbols() {
+        return new LinkedHashSet<>(tossProps.watchList());
+    }
+
+    /** 한 배치의 현재가를 받아 종목별로 탐지한다. deep이면 호가·캔들 등 부가 데이터까지 사용한다. */
+    private void scanBatch(List<String> symbols, boolean deep) {
+        List<MarketPrice> prices = fetchPrices(symbols);
+        observability.recordProcessedPrices(prices.size(), deep);
+        prices.forEach(price -> process(price, deep));
     }
 
     private List<MarketPrice> fetchPrices(List<String> symbols) {
@@ -150,52 +144,35 @@ public class MarketDataCollector {
 
     private void process(MarketPrice fetched, boolean deep) {
         try {
-            PriceSnapshot saved = snapshotRepository.save(PriceSnapshot.from(fetched));
-            String symbol = saved.getStockCode();
-
-            List<MarketPrice> recent = snapshotRepository
-                    .findByStockCodeOrderByCapturedAtDesc(symbol, Limit.of(RECENT_WINDOW))
-                    .stream()
-                    .filter(snapshot -> !snapshot.getId().equals(saved.getId()))
-                    .map(PriceSnapshot::toDomain)
-                    .toList();
-
-            PriceLimit priceLimit = null;
-            OrderbookSnapshot orderbook = null;
-            List<Candle> candles = List.of();
-            List<Warning> warnings = List.of();
-            if (deep) {
-                // 부가 데이터는 실패하더라도 해당 룰만 비활성화되도록 개별 격리
-                priceLimit = safe(() -> marketDataClient.fetchPriceLimit(symbol), null, symbol, "가격제한폭");
-                orderbook = safe(() -> marketDataClient.fetchOrderbook(symbol), null, symbol, "호가");
-                candles = safe(() -> marketDataClient.fetchCandles(symbol, CANDLE_INTERVAL, CANDLE_COUNT),
-                        List.of(), symbol, "캔들");
-                warnings = safe(() -> marketDataClient.fetchWarnings(symbol), List.of(), symbol, "투자경고");
-            }
-
-            DetectionContext context = new DetectionContext(
-                    saved.toDomain(), recent, priceLimit, orderbook, candles, warnings, clock.instant());
-            for (Anomaly anomaly : ruleEngine.evaluate(context)) {
-                if (anomalyRecordingService.recordIfEligible(anomaly, Duration.ofMillis(cooldownMs)).isEmpty()) {
-                    continue;
-                }
-                observability.recordAnomaly();
-                for (AnomalyNotifier notifier : notifiers) {
-                    try {
-                        notifier.publish(anomaly);
-                    } catch (RuntimeException exception) {
-                        log.warn("Notifier {} failed for {} {} ({})",
-                                notifier.getClass().getSimpleName(), anomaly.stockCode(), anomaly.ruleType(),
-                                exception.getClass().getSimpleName());
-                    }
-                }
-                log.info("[이상거래 탐지] {} {} - {}",
-                        anomaly.stockCode(), anomaly.ruleType(), anomaly.message());
-            }
+            DetectionContext context = buildContext(fetched, deep);
+            ruleEngine.evaluate(context).forEach(anomaly -> dispatcher.dispatch(anomaly, cooldown));
         } catch (Exception e) {
             observability.recordItemFailure();
             log.warn("[{}] 탐지 처리 실패: {}", fetched.stockCode(), e.getClass().getSimpleName());
         }
+    }
+
+    /** 현재가를 스냅샷으로 저장하고, 직전 스냅샷과(필요하면) 부가 시장 데이터로 탐지 컨텍스트를 만든다. */
+    private DetectionContext buildContext(MarketPrice fetched, boolean deep) {
+        PriceSnapshot saved = snapshotRepository.save(PriceSnapshot.from(fetched));
+        String symbol = saved.getStockCode();
+        List<MarketPrice> recent = snapshotRepository
+                .findByStockCodeOrderByCapturedAtDesc(symbol, Limit.of(RECENT_WINDOW))
+                .stream()
+                .filter(snapshot -> !snapshot.getId().equals(saved.getId()))
+                .map(PriceSnapshot::toDomain)
+                .toList();
+        if (!deep) {
+            return new DetectionContext(saved.toDomain(), recent, null, null, List.of(), List.of(), clock.instant());
+        }
+        // 부가 데이터는 실패하더라도 해당 룰만 비활성화되도록 개별 격리
+        PriceLimit priceLimit = safe(() -> marketDataClient.fetchPriceLimit(symbol), null, symbol, "가격제한폭");
+        OrderbookSnapshot orderbook = safe(() -> marketDataClient.fetchOrderbook(symbol), null, symbol, "호가");
+        List<Candle> candles = safe(() -> marketDataClient.fetchCandles(symbol, CANDLE_INTERVAL, CANDLE_COUNT),
+                List.of(), symbol, "캔들");
+        List<Warning> warnings = safe(() -> marketDataClient.fetchWarnings(symbol), List.of(), symbol, "투자경고");
+        return new DetectionContext(
+                saved.toDomain(), recent, priceLimit, orderbook, candles, warnings, clock.instant());
     }
 
     private <T> T safe(Supplier<T> call, T fallback, String symbol, String what) {
