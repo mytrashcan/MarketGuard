@@ -8,7 +8,8 @@ const $ = id => document.getElementById(id);
 const ACTION_LABELS = {
     CASE_STATUS_CHANGED: "사건 상태 변경",
     CASE_NOTE_CREATED: "메모 작성",
-    TOSS_TOKEN_ISSUE: "토스 토큰 발급"
+    TOSS_TOKEN_ISSUE: "토스 토큰 발급",
+    AUDIT_LOG_PRUNED: "감사 로그 정리"
 };
 const OUTCOME_LABELS = { SUCCESS: "성공", FAILURE: "실패" };
 

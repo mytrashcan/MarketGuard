@@ -122,6 +122,8 @@ scheduling:
 maintenance:
   snapshot-cleanup-interval: 10m
   snapshot-retention: 1h
+  # 감사 로그 보존 기간. 0이면 지우지 않는다(기본). 설정하면 최소 1일(예: 365d).
+  audit-retention: ${AUDIT_RETENTION:0}
 
 # 탐지 룰 임계치
 detection:
