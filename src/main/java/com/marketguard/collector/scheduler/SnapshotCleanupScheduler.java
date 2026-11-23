@@ -33,7 +33,7 @@ public class SnapshotCleanupScheduler {
     @Transactional
     public void prune() {
         Instant cutoff = clock.instant().minus(properties.snapshotRetention());
-        long deleted = snapshotRepository.deleteByCapturedAtBefore(cutoff);
+        int deleted = snapshotRepository.deleteCapturedBefore(cutoff);
         if (deleted > 0) {
             log.info("오래된 시세 스냅샷 {}건 정리", deleted);
         }
