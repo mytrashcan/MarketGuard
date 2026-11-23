@@ -41,6 +41,11 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 - `GET /api/anomalies/{id}` returns one structured signal.
 - `GET /api/stocks/{code}/context?count=120` returns quote/candles and explicit unavailable context. It never fabricates news, disclosures, industry movement, or index returns.
 - `GET /api/analytics/rules` returns occurrence and case counts, dismissed/escalated percentages, and average completed review time.
+- `GET /api/analytics/signals?days=14` (`days=1..31`, default 14) returns, for the last `days` KST calendar days including today:
+  - `daily`: signals, critical signals and distinct symbols per day, with quiet days as zeros.
+  - `rules`: per rule, signal count, measured count, `directional` sample size, `followed` (share of directional measured signals whose price moved the signal's way after `horizonMinutes`; 50% is chance), `medianAbsChangePercent`, and `followedAfterMarket` (the same after subtracting the median move of all scanned stocks over the same window). Each rate is `{ratePercent, lowerPercent, upperPercent, samples}` with a 95% Wilson interval, or `null` when there is no sample. `bands` repeats the counts and rates per threshold-multiple band (`NEAR` ×1–1.5, `MID` ×1.5–2, `STRONG` ×2+); it is empty for rules without a comparable strength (price limit, investment warning).
+  - `coverage`: counts of `measured`, `noPriceData`, `notApplicable` and `pending` outcomes, plus `otherHorizon`: results measured with a different `outcome.horizon` than the current one. Those are excluded from the per-rule statistics so results taken at different horizons are never mixed.
+- Signal objects (`/api/anomalies`, case `signals`) include `outcomeStatus` (`MEASURED`, `NO_PRICE_DATA`, `NOT_APPLICABLE`, or `null` while pending), `outcomeChangePercent`, `outcomeFollowedDirection`, `outcomeMarketChangePercent`, `outcomeExcessChangePercent`, `outcomeFollowedAfterMarket` and `outcomeMeasuredAt`, plus `thresholdMultiple`: how many times its threshold the signal fired at, normalized across rules (`null` for price limit and investment warning). Market fields are `null` when fewer than `outcome.benchmark-minimum-samples` scanned stocks had prices in both windows.
 
 ## Stable errors
 

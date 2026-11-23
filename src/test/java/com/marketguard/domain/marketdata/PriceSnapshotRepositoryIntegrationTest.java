@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.marketguard.application.AnomalyRecordingService;
 import com.marketguard.application.CaseReviewService;
+import com.marketguard.application.SignalOutcomeService;
 import com.marketguard.application.StaleCaseVersionException;
 import com.marketguard.dashboard.CaseQueryService;
 import com.marketguard.detection.casework.CaseStatus;
+import com.marketguard.detection.evaluation.OutcomeStatus;
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
@@ -20,6 +22,7 @@ import com.marketguard.domain.casework.CaseStatusHistoryRepository;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -91,6 +94,9 @@ class PriceSnapshotRepositoryIntegrationTest {
     @Autowired
     CaseQueryService caseQueryService;
 
+    @Autowired
+    SignalOutcomeService signalOutcomeService;
+
     @BeforeEach
     void cleanDatabase() {
         anomalyRepository.deleteAll();
@@ -114,13 +120,35 @@ class PriceSnapshotRepositoryIntegrationTest {
         assertThat(repository.findByStockCodeOrderByCapturedAtDesc("005930", Limit.of(10))).hasSize(1);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from flyway_schema_history where success = true", Integer.class))
-                .isEqualTo(5);
+                .isEqualTo(6);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_name = 'anomaly_cooldown'",
                 Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_name = 'surveillance_case'",
                 Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void measuresSignalOutcomesFromRetainedSnapshotsAndAggregatesThem() {
+        Instant signalAt = Instant.now().minus(Duration.ofMinutes(40)).truncatedTo(ChronoUnit.SECONDS);
+        repository.save(new PriceSnapshot("005930", new BigDecimal("70000"), signalAt.minusSeconds(20)));
+        repository.save(new PriceSnapshot("005930", new BigDecimal("71400"), signalAt.plus(Duration.ofMinutes(30)).plusSeconds(20)));
+        anomalyRecordingService.recordIfEligible(
+                new Anomaly("005930", RuleType.PRICE_SPIKE, Severity.WARNING, "가격 급변동", signalAt),
+                Duration.ofMinutes(10));
+
+        // 백그라운드 스케줄이 먼저 측정했을 수도 있으므로 처리 건수가 아닌 결과를 확인한다.
+        signalOutcomeService.measurePending();
+
+        var rows = anomalyRepository.findStatRows(signalAt.minus(Duration.ofDays(1)), Instant.now());
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.outcomeStatus()).isEqualTo(OutcomeStatus.MEASURED);
+            assertThat(row.outcomeChangePercent()).isEqualByComparingTo("2");
+        });
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "update anomaly_record set outcome_status = 'MEASURED', outcome_price = null"))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

@@ -210,6 +210,32 @@
         <!-- 통계 -->
         <section class="view" data-view-panel="insights" hidden>
             <div class="page">
+                <section class="section" aria-labelledby="measureTitle">
+                    <div class="section-head">
+                        <h2 id="measureTitle">신호 측정</h2>
+                        <span class="spacer"></span>
+                        <div class="tabs" id="measureDays" aria-label="기간">
+                            <button type="button" data-days="7" aria-pressed="false">7일</button>
+                            <button type="button" data-days="14" aria-pressed="true">14일</button>
+                            <button type="button" data-days="31" aria-pressed="false">31일</button>
+                        </div>
+                    </div>
+                    <dl class="stats" id="measureStats">
+                        <div class="stat"><dt>신호</dt><dd id="mTotal">–</dd></div>
+                        <div class="stat"><dt>하루 평균</dt><dd id="mPerDay">–</dd></div>
+                        <div class="stat"><dt>결과 측정됨</dt><dd id="mMeasured">–</dd></div>
+                        <div class="stat"><dt>측정 불가</dt><dd id="mUnmeasured">–</dd></div>
+                    </dl>
+                    <div class="volume" id="dailyVolume" role="img"></div>
+                    <div class="table-wrap"><table class="t wide">
+                        <thead><tr>
+                            <th>규칙</th><th class="r">신호</th><th class="r">측정</th>
+                            <th class="r">방향 지속률</th><th class="r">시장 대비</th><th class="r" id="medianHead">변동 중앙값</th><th>강도별 시장 대비</th><th>판단</th>
+                        </tr></thead>
+                        <tbody id="ruleOutcomes"></tbody>
+                    </table></div>
+                    <p class="footnote" id="measureNote"></p>
+                </section>
                 <section class="section">
                     <div class="section-head"><h2>규칙별 검토 결과</h2></div>
                     <div class="table-wrap"><table class="t wide">

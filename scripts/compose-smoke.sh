@@ -41,4 +41,8 @@ migration_count="$(docker compose exec --no-TTY postgres \
   psql --tuples-only --no-align --username "${POSTGRES_USER:-marketguard}" \
   --dbname "${POSTGRES_DB:-marketguard}" \
   --command 'select count(*) from flyway_schema_history where success = true')"
-test "${migration_count}" = "5"
+expected_migrations="$(find src/main/resources/db/migration -name 'V*__*.sql' | wc -l | tr -d ' ')"
+if [ "${migration_count}" != "${expected_migrations}" ]; then
+  echo "Expected ${expected_migrations} applied Flyway migrations, found ${migration_count}" >&2
+  exit 1
+fi

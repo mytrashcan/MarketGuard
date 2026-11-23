@@ -14,6 +14,7 @@ Current context availability:
 | KOSPI/KOSDAQ market-wide institutional buy/sell amounts | available from Toss investor-trading data; current-day values are provisional |
 | sector/market relative return | extension point only; aligned history unavailable |
 | same-time historical baseline | calculator tested; production history/cache deferred |
+| post-signal price outcome | measured once at the configured horizon from retained snapshots, raw and net of the scanned-universe median move |
 | disclosures, news, new listing, split, ex-dividend | external data required |
 
 The main dashboard preserves the Toss ranking order and uses each response's matching price, base price, change rate, volume, and trading amount. The legacy `/api/prices/live` “buy/sell” value is pending bid/ask quantity, not trade-side volume or investor net buying.
@@ -21,3 +22,5 @@ The main dashboard preserves the Toss ranking order and uses each response's mat
 Institutional-flow signals use the KOSPI or KOSDAQ market-wide institution total. They do not attribute flow to an individual stock or a particular institution. The current-day record can change until the upstream end-of-day update, so operators must confirm the final value before escalation.
 
 Review outcomes are analytics for operator judgment. They do not automatically tune detection thresholds because the sample is biased, labels are subjective, and automated feedback could hide future signals.
+
+Signal outcomes are a sanity check, not proof of usefulness. A follow rate near 50% means a rule does not predict the next move better than chance. The market-adjusted rate subtracts the median move of all scanned stocks over the same window, which removes broad momentum but is an equal-weighted proxy, not the KOSPI/KOSDAQ index, and does not remove sector moves. It is only computed when enough stocks were scanned (`outcome.benchmark-minimum-samples`), so watch-list-only deployments get raw outcomes only. Signals near the close and market-wide signals have no outcome, which biases the measured sample toward intraday stock signals. Each rate carries a 95% Wilson interval and the dashboard draws a conclusion only when the whole interval is above or below 50%. The stored `deviationRatio` means different things per rule (observed ÷ threshold, multiple of baseline, or distance to the price limit). Strength bands and the "over threshold" highlight use an explicit per-rule conversion to a threshold multiple instead of the raw field; price-limit signals have no comparable strength. Comparing eight rules at once still raises the chance that one looks significant by luck, and signals from the same stock and day are not independent, so treat a single significant rule as a lead to investigate rather than a result.
