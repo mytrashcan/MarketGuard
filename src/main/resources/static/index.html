@@ -191,7 +191,7 @@
                             </select>
                         </div>
                     </div>
-                    <div id="caseList" aria-live="polite"></div>
+                    <div id="caseList"></div>
                     <div class="pager">
                         <span id="caseCount"></span>
                         <span style="display:flex;align-items:center;gap:8px">
@@ -201,7 +201,7 @@
                         </span>
                     </div>
                 </div>
-                <article class="pane detail-pane" id="caseDetail" aria-live="polite">
+                <article class="pane detail-pane" id="caseDetail" aria-label="사건 상세">
                     <div class="detail"><p class="state-line">사건을 선택하세요. <kbd>J</kbd> <kbd>K</kbd>로 목록을 이동할 수 있습니다.</p></div>
                 </article>
             </div>
@@ -270,6 +270,7 @@
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
+<p id="srStatus" class="sr-only" role="status" aria-live="polite"></p>
 
 <dialog class="modal" id="tokenDialog" aria-labelledby="tokenDialogTitle">
     <form method="dialog" id="tokenForm">
