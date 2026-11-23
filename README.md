@@ -168,9 +168,12 @@ reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성�
 ./gradlew clean check bootJar
 docker build -t marketguard:local .
 ./scripts/compose-smoke.sh
+# 대시보드 스크립트 단위 테스트(Node 20.19 또는 22.12 이상, 의존성 없음)
+# 대시보드 .js 모듈을 package.json 없이 ES 모듈로 읽으려면 Node의 모듈 자동 판별이 필요합니다.
+node --test src/test/js/*.test.mjs
 ```
 
-CI는 Gradle wrapper 검증, 전체 테스트, 65% line coverage gate, CodeQL/dependency review, hardened image build/scan, Compose 스모크를 수행합니다. GitHub Actions와 Docker base image는 commit/digest로 고정했습니다.
+CI는 Gradle wrapper 검증, 전체 테스트, 대시보드 스크립트 테스트, 65% line coverage gate, CodeQL/dependency review, hardened image build/scan, Compose 스모크를 수행합니다. GitHub Actions와 Docker base image는 commit/digest로 고정했습니다.
 
 ## 운영과 보안
 
