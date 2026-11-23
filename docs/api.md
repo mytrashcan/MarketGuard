@@ -39,6 +39,7 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 
 - `GET /api/anomalies?limit=50` remains backward compatible and now adds structured evidence fields.
 - `GET /api/anomalies/{id}` returns one structured signal.
+- `GET /api/anomalies/count?since=<ISO-8601>` returns `{since, signals, critical}`: the number of signals recorded at or after `since`, counted in the database rather than from a page of results.
 - `GET /api/stocks/{code}/context?count=120` returns quote/candles and explicit unavailable context. It never fabricates news, disclosures, industry movement, or index returns.
 - `GET /api/analytics/rules` returns occurrence and case counts, dismissed/escalated percentages, and average completed review time.
 

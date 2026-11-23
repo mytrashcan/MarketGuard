@@ -7,14 +7,18 @@ import com.marketguard.collector.MarketRankingType;
 import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.detection.model.Candle;
+import com.marketguard.detection.model.Severity;
+import com.marketguard.domain.anomaly.AnomalyCountRepository;
 import com.marketguard.domain.anomaly.AnomalyRepository;
 import com.marketguard.domain.audit.AuditLogRepository;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.data.domain.Limit;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +41,7 @@ public class DashboardController {
     private final MarketRankingService marketRankingService;
     private final AuditLogRepository auditLogRepository;
     private final StockReferenceService stockReferenceService;
+    private final AnomalyCountRepository anomalyCountRepository;
 
     public DashboardController(AnomalyRepository anomalyRepository,
                               PriceSnapshotRepository snapshotRepository,
@@ -44,7 +49,8 @@ public class DashboardController {
                               BoardDataService boardDataService,
                               MarketRankingService marketRankingService,
                               AuditLogRepository auditLogRepository,
-                              StockReferenceService stockReferenceService) {
+                              StockReferenceService stockReferenceService,
+                              AnomalyCountRepository anomalyCountRepository) {
         this.anomalyRepository = anomalyRepository;
         this.snapshotRepository = snapshotRepository;
         this.marketDataClient = marketDataClient;
@@ -52,6 +58,7 @@ public class DashboardController {
         this.marketRankingService = marketRankingService;
         this.auditLogRepository = auditLogRepository;
         this.stockReferenceService = stockReferenceService;
+        this.anomalyCountRepository = anomalyCountRepository;
     }
 
     /**
@@ -90,6 +97,14 @@ public class DashboardController {
         return anomalyRepository.findByOrderByDetectedAtDesc(Limit.of(limit)).stream()
                 .map(record -> AnomalyView.from(record, stockReferenceService.nameOf(record.getStockCode())))
                 .toList();
+    }
+
+    /** since 이후 신호 수. 목록 일부가 아니라 전체를 데이터베이스에서 센다. */
+    @GetMapping("/anomalies/count")
+    public SignalCountView countAnomalies(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since) {
+        return new SignalCountView(since, anomalyCountRepository.countByDetectedAtGreaterThanEqual(since),
+                anomalyCountRepository.countByDetectedAtGreaterThanEqualAndSeverity(since, Severity.CRITICAL));
     }
 
     /** 구조화된 근거를 포함한 단일 탐지 상세. */
