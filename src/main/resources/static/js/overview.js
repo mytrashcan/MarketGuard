@@ -98,7 +98,8 @@ function renderSignals(freshCount = 0) {
 export function pushSignal(notification) {
     recentSignals.unshift({ ...notification, summary: notification.message });
     recentSignals = recentSignals.slice(0, FEED_SIZE);
-    if (todayCount.since !== startOfTodayKst()) {
+    // 서버는 "…T15:00:00Z", 브라우저는 "…T15:00:00.000Z"로 쓰므로 문자열이 아니라 시각으로 비교한다.
+    if (Date.parse(todayCount.since) !== Date.parse(startOfTodayKst())) {
         renderSignals(1);
         loadSignals();
         return;
