@@ -41,6 +41,11 @@ The authenticated principal becomes the reviewer/author. Request bodies cannot c
 - `GET /api/anomalies/{id}` returns one structured signal.
 - `GET /api/stocks/{code}/context?count=120` returns quote/candles and explicit unavailable context. It never fabricates news, disclosures, industry movement, or index returns.
 - `GET /api/analytics/rules` returns occurrence and case counts, dismissed/escalated percentages, and average completed review time.
+- `GET /api/analytics/signals?days=14` (`days=1..31`, default 14) returns, for the last `days` KST calendar days including today:
+  - `daily`: signals, critical signals and distinct symbols per day, with quiet days as zeros.
+  - `rules`: per rule, signal count, measured count, `directional` sample size, `followedRatePercent` (share of directional measured signals whose price moved the signal's way after `horizonMinutes`; 50% is chance) and `medianAbsChangePercent`. Rates are `null` when there is no sample.
+  - `coverage`: counts of `measured`, `noPriceData`, `notApplicable` and `pending` outcomes.
+- Signal objects (`/api/anomalies`, case `signals`) include `outcomeStatus` (`MEASURED`, `NO_PRICE_DATA`, `NOT_APPLICABLE`, or `null` while pending), `outcomeChangePercent`, `outcomeFollowedDirection` and `outcomeMeasuredAt`.
 
 ## Stable errors
 

@@ -1,5 +1,7 @@
 package com.marketguard.domain.anomaly;
 
+import com.marketguard.detection.evaluation.OutcomeStatus;
+import com.marketguard.detection.evaluation.SignalOutcome;
 import com.marketguard.detection.model.Anomaly;
 import com.marketguard.detection.model.AnomalyEvidence;
 import com.marketguard.detection.model.Direction;
@@ -110,6 +112,24 @@ public class AnomalyRecord {
     @Column(nullable = false, columnDefinition = "TEXT")
     private List<EvidenceMeasurement> measurements;
 
+    /** 사후 결과 측정 상태. null이면 아직 측정 전이다. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private OutcomeStatus outcomeStatus;
+
+    @Column(precision = 19, scale = 4)
+    private BigDecimal outcomeBasePrice;
+
+    @Column(precision = 19, scale = 4)
+    private BigDecimal outcomePrice;
+
+    @Column(precision = 30, scale = 8)
+    private BigDecimal outcomeChangePercent;
+
+    private Boolean outcomeFollowedDirection;
+
+    private Instant outcomeMeasuredAt;
+
     public AnomalyRecord(String stockCode, RuleType ruleType, Severity severity, String message, Instant detectedAt) {
         this(new Anomaly(stockCode, ruleType, severity, message, detectedAt), stockCode, 0L);
     }
@@ -153,5 +173,23 @@ public class AnomalyRecord {
                 baselineValue, thresholdValue, deviationRatio, valueUnit, lookbackDescription,
                 direction, contextTags, recommendedChecks, marketObservedAt, caution, measurements);
         return Anomaly.explained(stockCode, ruleType, severity, message, detectedAt, evidence);
+    }
+
+    public void recordOutcome(SignalOutcome outcome, Instant measuredAt) {
+        this.outcomeStatus = outcome.status();
+        this.outcomeBasePrice = outcome.basePrice();
+        this.outcomePrice = outcome.outcomePrice();
+        this.outcomeChangePercent = outcome.changePercent();
+        this.outcomeFollowedDirection = outcome.followedDirection();
+        this.outcomeMeasuredAt = measuredAt;
+    }
+
+    /** 측정 전이면 null. */
+    public SignalOutcome toOutcome() {
+        if (outcomeStatus == null) {
+            return null;
+        }
+        return new SignalOutcome(outcomeStatus, outcomeBasePrice, outcomePrice, outcomeChangePercent,
+                outcomeFollowedDirection);
     }
 }

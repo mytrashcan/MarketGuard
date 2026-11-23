@@ -121,7 +121,13 @@ scheduling:
 
 maintenance:
   snapshot-cleanup-interval: 10m
-  snapshot-retention: 1h
+  snapshot-retention: 1h        # 결과 측정(outcome)에 필요한 시간보다 길어야 한다
+
+# 신호 사후 결과: 신호 후 horizon 뒤 가격이 신호 방향으로 움직였는지 한 번 측정해 신호에 남긴다.
+outcome:
+  horizon: 30m
+  match-window: 3m              # 신호·측정 시점에서 이 시간 안의 스냅샷만 가격으로 인정
+  measure-interval: 1m
 
 # 탐지 룰 임계치
 detection:

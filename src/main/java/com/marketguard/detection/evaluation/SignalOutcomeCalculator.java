@@ -1,0 +1,37 @@
+package com.marketguard.detection.evaluation;
+
+import com.marketguard.detection.model.DecimalMath;
+import com.marketguard.detection.model.Direction;
+import java.math.BigDecimal;
+
+/** 신호 시점과 일정 시간 뒤의 가격으로 결과를 계산한다. */
+public final class SignalOutcomeCalculator {
+
+    public SignalOutcome measure(Direction direction, BigDecimal basePrice, BigDecimal outcomePrice) {
+        if (basePrice == null || outcomePrice == null || basePrice.signum() <= 0 || outcomePrice.signum() <= 0) {
+            return SignalOutcome.noPriceData();
+        }
+        BigDecimal change = DecimalMath.percentageChange(outcomePrice, basePrice);
+        return new SignalOutcome(OutcomeStatus.MEASURED, basePrice, outcomePrice, change, followed(direction, change));
+    }
+
+    /** 신호가 예상한 가격 방향. 매수 우위·순매수는 상승, 매도 우위·순매도는 하락으로 본다. 없으면 0. */
+    static int expectedSign(Direction direction) {
+        if (direction == null) {
+            return 0;
+        }
+        return switch (direction) {
+            case UP, BUY -> 1;
+            case DOWN, SELL -> -1;
+            case NONE -> 0;
+        };
+    }
+
+    private static Boolean followed(Direction direction, BigDecimal change) {
+        int expected = expectedSign(direction);
+        if (expected == 0 || change.signum() == 0) {
+            return null;
+        }
+        return change.signum() == expected;
+    }
+}

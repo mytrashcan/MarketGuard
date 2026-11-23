@@ -2,6 +2,7 @@ package com.marketguard.dashboard;
 
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
+import com.marketguard.detection.evaluation.OutcomeStatus;
 import com.marketguard.detection.model.Direction;
 import com.marketguard.detection.model.EvidenceMeasurement;
 import java.math.BigDecimal;
@@ -32,7 +33,11 @@ public record AnomalyView(
         List<String> recommendedChecks,
         Instant marketObservedAt,
         String caution,
-        List<EvidenceMeasurement> measurements
+        List<EvidenceMeasurement> measurements,
+        OutcomeStatus outcomeStatus,
+        BigDecimal outcomeChangePercent,
+        Boolean outcomeFollowedDirection,
+        Instant outcomeMeasuredAt
 ) {
     static AnomalyView from(AnomalyRecord record, String stockName) {
         String resolvedName = stockName == null || stockName.isBlank() ? record.getStockName() : stockName;
@@ -42,6 +47,7 @@ public record AnomalyView(
                 record.getBaselineValue(), record.getThresholdValue(), record.getDeviationRatio(),
                 record.getValueUnit(), record.getLookbackDescription(), record.getDirection(),
                 record.getContextTags(), record.getRecommendedChecks(), record.getMarketObservedAt(),
-                record.getCaution(), record.getMeasurements());
+                record.getCaution(), record.getMeasurements(), record.getOutcomeStatus(),
+                record.getOutcomeChangePercent(), record.getOutcomeFollowedDirection(), record.getOutcomeMeasuredAt());
     }
 }
