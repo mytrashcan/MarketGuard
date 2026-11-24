@@ -1,31 +1,48 @@
 #!/usr/bin/env bash
-# Daily health check for the pre-registered run. Reads the Compose PostgreSQL directly, so it needs no
-# operator credentials and changes nothing. Run from the repository root:  ./scripts/run_status.sh
-# Look for: a fresh latest snapshot during market hours, a full universe per scan, and price points
-# keeping up with signals. Do not use it to look at per-rule follow rates during the run.
+# Daily health check for the pre-registered run (docs/run-checklist.md). Reads the Compose PostgreSQL
+# directly, needs no operator credentials, changes nothing, and exits non-zero if any query fails.
+# Run from the repository root after the close and before 18:00 KST (snapshots are kept 9h during the run):
+#   ./scripts/run_status.sh
+# It deliberately shows no follow rates: do not judge rules during the run.
 set -euo pipefail
 
-db="${POSTGRES_DB:-}"
-user="${POSTGRES_USER:-}"
-if [[ -f .env ]]; then
-  db="${db:-$(sed -n 's/^POSTGRES_DB=//p' .env | tr -d "\"'")}"
-  user="${user:-$(sed -n 's/^POSTGRES_USER=//p' .env | tr -d "\"'")}"
-fi
-db="${db:-marketguard}"
-user="${user:-marketguard}"
-
-docker compose exec --no-TTY postgres psql --quiet --no-psqlrc --username "$user" --dbname "$db" <<'SQL'
+# Database name and user come from the running container, exactly as Compose resolved them.
+docker compose exec --no-TTY postgres sh -c \
+  'exec psql --quiet --no-psqlrc --set=ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' <<'SQL'
 \pset footer off
 SET TIME ZONE 'Asia/Seoul';
 
-\echo '== Collection (snapshots are kept 90 minutes)'
-SELECT max(captured_at)                                   AS latest_snapshot,
-       date_trunc('second', now() - max(captured_at))     AS age,
-       count(DISTINCT stock_code)                         AS symbols_last_90m,
-       count(*) FILTER (WHERE captured_at > now() - interval '5 minutes')  AS rows_last_5m
+\echo '== Today''s regular session, in 5-minute buckets (09:00-15:30 KST)'
+\echo '   A full session has data in every bucket and nearly the whole universe in almost all of them.'
+WITH day AS (
+    SELECT date_trunc('day', now()) AS start
+), buckets AS (
+    SELECT generate_series(start + interval '9 hours',
+                           least(start + interval '15 hours 25 minutes', now() - interval '5 minutes'),
+                           interval '5 minutes') AS bucket
+    FROM day
+), per_bucket AS (
+    SELECT bucket,
+           (SELECT count(DISTINCT stock_code) FROM price_snapshot
+            WHERE captured_at >= bucket AND captured_at < bucket + interval '5 minutes') AS symbols
+    FROM buckets
+)
+SELECT count(*)                                                        AS buckets_so_far,
+       count(*) FILTER (WHERE symbols > 0)                             AS with_data,
+       count(*) FILTER (WHERE symbols >= 0.9 * peak)                   AS near_full_universe,
+       max(symbols)                                                    AS peak_symbols,
+       (SELECT min(captured_at) FROM price_snapshot, day WHERE captured_at >= day.start) AS first_snapshot_today,
+       coalesce(string_agg(to_char(bucket, 'HH24:MI'), ' ' ORDER BY bucket) FILTER (WHERE symbols = 0), '-')
+                                                                       AS empty_buckets
+FROM per_bucket, (SELECT max(symbols) AS peak FROM per_bucket) peak;
+
+\echo '== Collection right now'
+SELECT max(captured_at)                                                           AS latest_snapshot,
+       date_trunc('second', now() - max(captured_at))                             AS age,
+       count(DISTINCT stock_code) FILTER (WHERE captured_at > now() - interval '90 minutes') AS symbols_last_90m
 FROM price_snapshot;
 
-\echo '== Signals per KST day (last 7 days, stock signals vs market-wide)'
+\echo '== Signals per KST day (last 7 days)'
 SELECT detected_at::date AS day,
        count(*) FILTER (WHERE stock_code NOT IN ('KOSPI', 'KOSDAQ')) AS stock_signals,
        count(*) FILTER (WHERE stock_code IN ('KOSPI', 'KOSDAQ'))     AS market_signals,
@@ -34,17 +51,22 @@ FROM anomaly_record
 WHERE detected_at > now() - interval '7 days'
 GROUP BY 1 ORDER BY 1 DESC;
 
-\echo '== Price path recording (stock signals older than 70 minutes should have all 4 points)'
+\echo '== Price paths of today''s stock signals older than 70 minutes'
+\echo '   Signals after about 14:57 cannot have a 30-minute price before the close; usable_30m only counts earlier ones.'
 SELECT count(*)                                                       AS signals,
-       count(*) FILTER (WHERE points = 4)                             AS complete,
-       count(*) FILTER (WHERE points = 0)                             AS none_recorded,
-       count(*) FILTER (WHERE with_price < points)                    AS with_missing_prices
+       count(*) FILTER (WHERE offsets = 4)                            AS all_offsets_recorded,
+       count(*) FILTER (WHERE offsets = 0)                            AS none_recorded,
+       count(*) FILTER (WHERE detected_at::time < time '14:57')       AS before_1457,
+       count(*) FILTER (WHERE detected_at::time < time '14:57' AND usable_30m) AS usable_30m
 FROM (
-    SELECT a.id, count(p.offset_minutes) AS points, count(p.price) AS with_price
+    SELECT a.id, a.detected_at,
+           count(p.offset_minutes) AS offsets,
+           bool_or(p.offset_minutes = 30 AND p.price IS NOT NULL AND p.market_change_percent IS NOT NULL)
+               IS TRUE AS usable_30m
     FROM anomaly_record a LEFT JOIN signal_price_point p ON p.anomaly_id = a.id
     WHERE a.stock_code NOT IN ('KOSPI', 'KOSDAQ')
       AND a.detected_at::date = now()::date
       AND a.detected_at < now() - interval '70 minutes'
-    GROUP BY a.id
+    GROUP BY a.id, a.detected_at
 ) per_signal;
 SQL

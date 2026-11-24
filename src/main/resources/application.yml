@@ -123,7 +123,9 @@ maintenance:
   # 감사 로그 보존 기간. 0이면 지우지 않는다(기본). 설정하면 최소 1일(예: 365d).
   audit-retention: ${AUDIT_RETENTION:0}
   snapshot-cleanup-interval: 10m
-  snapshot-retention: 90m       # 결과 측정과 가장 늦은 가격 경로 시점(outcome.path-offsets)보다 길어야 한다
+  # 결과 측정과 가장 늦은 가격 경로 시점(outcome.path-offsets)보다 길어야 한다. 검증 실행 중에는 9h로 늘려
+  # 장 마감 뒤 점검(scripts/run_status.sh)이 그날 정규장 전체의 수집 공백을 볼 수 있게 한다.
+  snapshot-retention: ${SNAPSHOT_RETENTION:90m}
 
 # 신호 사후 결과: 신호 후 horizon 뒤 가격이 신호 방향으로 움직였는지 한 번 측정해 신호에 남긴다.
 outcome:

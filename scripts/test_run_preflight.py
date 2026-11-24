@@ -1,5 +1,7 @@
 """Tests for run_preflight.py. Run: python3 -m unittest discover -s scripts -p 'test_*.py'"""
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +21,16 @@ KRX_SECTORS = (
     "종목코드,종목명,시장구분,업종명,종가\n"
     "247540,에코프로비엠,KOSDAQ,일반전기전자,200000\n"
 )
+COMPLETE = {"POSTGRES_PASSWORD": "x", "TOSS_CLIENT_ID": "x", "TOSS_CLIENT_SECRET": "x", "COLLECTOR_ENABLED": "true",
+            "MARKETGUARD_ADMIN_USERNAME": "u", "MARKETGUARD_ADMIN_PASSWORD": "p", "SNAPSHOT_RETENTION": "9h",
+            "SCAN_SYMBOLS_FILE": "/data/symbols.csv", "OUTCOME_SECTORS_FILE": "/data/sectors.csv"}
+
+
+def quietly(function, *args):
+    report = preflight.Report()
+    with contextlib.redirect_stdout(io.StringIO()):
+        result = function(*args, report)
+    return report, result
 
 
 class ParsingTest(unittest.TestCase):
@@ -29,48 +41,81 @@ class ParsingTest(unittest.TestCase):
     def test_reads_concatenated_sector_files_with_quoted_numbers(self):
         self.assertEqual(preflight.sector_map(KRX_SECTORS), {"005930": "전기·전자", "247540": "일반전기전자"})
 
-    def test_decodes_cp949_and_utf8_with_bom(self):
+    def test_reads_the_header_after_a_utf8_byte_order_mark(self):
+        text = preflight.decode("﻿종목코드,종목명,시장구분,업종명\n005930,삼성전자,KOSPI,전기·전자\n".encode("utf-8"))
+        self.assertEqual(preflight.sector_map(text), {"005930": "전기·전자"})
         self.assertEqual(preflight.decode("업종명".encode("cp949")), "업종명")
-        self.assertEqual(preflight.decode("﻿업종명".encode("utf-8")), "업종명")
 
-    def test_reads_env_values_without_quotes_and_ignores_comments(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / ".env"
-            path.write_text("# comment\nA=1\nB='two words'\nC=\"x=y\"\nEMPTY=\n", encoding="utf-8")
-            self.assertEqual(preflight.read_env(path), {"A": "1", "B": "two words", "C": "x=y", "EMPTY": ""})
+    def test_reads_env_like_compose_with_quotes_and_inline_comments(self):
+        values = preflight.read_env_text("# comment\nA=1\nB='two # words'\nC=\"x=y\"\nD=marketguard # local\nE=\n")
+        self.assertEqual(values, {"A": "1", "B": "two # words", "C": "x=y", "D": "marketguard", "E": ""})
+
+    def test_reads_spring_durations(self):
+        self.assertEqual(preflight.duration_minutes("9h"), 540)
+        self.assertEqual(preflight.duration_minutes("90m"), 90)
+        self.assertIsNone(preflight.duration_minutes("PT9H"))
+
+
+class SettingsTest(unittest.TestCase):
+
+    def test_uses_the_environment_and_mount_that_compose_resolves(self):
+        config = {"services": {
+            "app": {"environment": {"COLLECTOR_ENABLED": "false"},
+                    "volumes": [{"type": "bind", "source": "/srv/krx", "target": "/data", "read_only": True}]},
+            "postgres": {"environment": {"POSTGRES_PASSWORD": "x"}}}}
+        settings = preflight.Settings.from_compose(config, Path("."))
+        self.assertEqual(settings.value("COLLECTOR_ENABLED"), "false")
+        self.assertEqual(settings.value("POSTGRES_PASSWORD"), "x")
+        self.assertEqual(settings.data_dir, Path("/srv/krx"))
+        report, _ = quietly(preflight.check_settings, settings)
+        self.assertTrue(report.failed)
+
+    def test_accepts_a_complete_configuration_and_requires_long_retention(self):
+        report, _ = quietly(preflight.check_settings, preflight.Settings(COMPLETE, {}, None, "test"))
+        self.assertFalse(report.failed)
+        report, _ = quietly(preflight.check_settings,
+                            preflight.Settings({**COMPLETE, "SNAPSHOT_RETENTION": "90m"}, {}, None, "test"))
+        self.assertTrue(report.failed)
+
+    def test_never_prints_setting_values(self):
+        secret = "s3cr3t-value"
+        settings = preflight.Settings({**COMPLETE, "TOSS_CLIENT_SECRET": secret, "TOSS_CLIENT_ID": ""}, {}, None, "t")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            preflight.check_settings(settings, preflight.Report())
+        self.assertNotIn(secret, output.getvalue())
 
 
 class DataCheckTest(unittest.TestCase):
 
-    def test_maps_container_paths_to_the_mounted_folder_and_reports_coverage(self):
+    def write(self, root: Path, symbols: str, sectors: str) -> preflight.Settings:
+        (root / "data").mkdir()
+        (root / "data" / "symbols.csv").write_text(symbols, encoding="utf-8")
+        (root / "data" / "sectors.csv").write_bytes(sectors.encode("cp949"))
+        return preflight.Settings(COMPLETE, {}, root / "data", "test")
+
+    def test_reports_universe_size_and_sector_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "data").mkdir()
-            (root / "data" / "symbols.csv").write_text(KRX_SYMBOLS, encoding="utf-8")
-            (root / "data" / "sectors.csv").write_bytes(KRX_SECTORS.encode("cp949"))
-            env = {"SCAN_SYMBOLS_FILE": "/data/symbols.csv", "OUTCOME_SECTORS_FILE": "/data/sectors.csv"}
-            report = preflight.Report()
-
-            symbols, coverage = preflight.check_data(env, root, report)
-
-            self.assertEqual(symbols, 2)
-            self.assertEqual(coverage, 0.5)
+            settings = self.write(Path(directory), KRX_SYMBOLS, KRX_SECTORS)
+            report, (symbols, coverage) = quietly(preflight.check_data, settings, Path(directory))
+            self.assertEqual((symbols, coverage), (2, 0.5))
             self.assertTrue(report.failed)  # 2 symbols is far below a full-market universe
 
-    def test_rejects_paths_outside_the_mounted_folder(self):
-        report = preflight.Report()
-        preflight.check_data({"SCAN_SYMBOLS_FILE": "/Users/me/symbols.csv"}, Path("."), report)
-        self.assertTrue(report.failed)
+    def test_fails_a_header_only_symbol_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            settings = self.write(Path(directory), "표준코드,단축코드,한글 종목명\n", KRX_SECTORS)
+            report, (symbols, _) = quietly(preflight.check_data, settings, Path(directory))
+            self.assertEqual(symbols, 0)
+            self.assertTrue(report.failed)
 
-    def test_requires_secrets_and_the_collector(self):
-        report = preflight.Report()
-        preflight.check_env({"POSTGRES_PASSWORD": "x", "TOSS_CLIENT_ID": "x", "TOSS_CLIENT_SECRET": "x",
-                             "COLLECTOR_ENABLED": "true", "MARKETGUARD_ADMIN_USERNAME": "u",
-                             "MARKETGUARD_ADMIN_PASSWORD": "p"}, report)
-        self.assertFalse(report.failed)
-        report = preflight.Report()
-        preflight.check_env({"POSTGRES_PASSWORD": "x", "TOSS_CLIENT_ID": "", "COLLECTOR_ENABLED": "false"}, report)
-        self.assertTrue(report.failed)
+    def test_rejects_paths_outside_the_mounted_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            settings = self.write(Path(directory), KRX_SYMBOLS, KRX_SECTORS)
+            settings.app_env = {**COMPLETE, "SCAN_SYMBOLS_FILE": "/data/../../etc/passwd",
+                                "OUTCOME_SECTORS_FILE": "/elsewhere/sectors.csv"}
+            report, (symbols, _) = quietly(preflight.check_data, settings, Path(directory))
+            self.assertTrue(report.failed)
+            self.assertEqual(symbols, 0)
 
 
 if __name__ == "__main__":

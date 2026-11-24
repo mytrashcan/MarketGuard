@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Check that this checkout is ready to start the pre-registered run (docs/analysis-plan.md).
 
-Standard library only. Never prints secret values. Usage, from the repository root:
-    python3 scripts/run_preflight.py            # checks .env, data files, Docker, git, host sleep
-    python3 scripts/run_preflight.py --env .env --skip-docker
+Standard library only. Never prints setting values. Run from anywhere:
+    python3 scripts/run_preflight.py
 
+Settings are read the way `docker compose up` will see them (`docker compose config`, which applies
+.env and any exported shell variables), and from .env only when Docker is unavailable.
 Exits 1 when a required check fails. Warnings do not fail the run but should be read.
 """
 
 from __future__ import annotations
 
-import argparse
+import json
 import re
 import subprocess
 import sys
@@ -19,8 +20,16 @@ from pathlib import Path
 CODE = re.compile(r"\d{6}")
 MINIMUM_SYMBOLS = 2000
 MINIMUM_SECTOR_COVERAGE = 0.8
+MINIMUM_RETENTION_MINUTES = 8 * 60
 CONTAINER_DATA_DIR = "/data"
-REQUIRED_SECRETS = ("POSTGRES_PASSWORD", "TOSS_CLIENT_ID", "TOSS_CLIENT_SECRET")
+APP_SERVICE = "app"
+# Settings that must be non-empty. Labels only, so no value is ever formatted into output.
+REQUIRED_VALUES = {
+    "POSTGRES_PASSWORD": "database password (postgres service)",
+    "TOSS_CLIENT_ID": "Toss client ID",
+    "TOSS_CLIENT_SECRET": "Toss client secret",
+}
+BUILD_INPUTS = ("src", "build.gradle", "settings.gradle", "gradle", "gradlew", "Dockerfile", ".dockerignore")
 
 
 class Report:
@@ -37,11 +46,14 @@ class Report:
         self.failed = True
         print(f"  FAIL  {message}")
 
+    def check(self, passed: bool, message: str) -> None:
+        (self.ok if passed else self.fail)(message)
 
-def read_env(path: Path) -> dict[str, str]:
-    """KEY=VALUE lines; quotes around the value are removed. Comments and blank lines are ignored."""
+
+def read_env_text(text: str) -> dict[str, str]:
+    """KEY=VALUE lines as Compose reads them: quotes removed, ' #' starts a comment on unquoted values."""
     values = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -49,12 +61,14 @@ def read_env(path: Path) -> dict[str, str]:
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
             value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].strip()
         values[key.strip()] = value
     return values
 
 
 def decode(data: bytes) -> str:
-    """KRX downloads are CP949; files saved by other tools are usually UTF-8 (with or without BOM)."""
+    """KRX downloads are CP949; files saved by other tools are usually UTF-8, with or without a BOM."""
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -111,54 +125,87 @@ def sector_map(text: str) -> dict[str, str]:
     return result
 
 
-def host_path(env: dict[str, str], container_path: str, root: Path) -> Path | None:
-    """Map a /data/... path from .env to the folder Compose mounts there."""
-    if not container_path.startswith(CONTAINER_DATA_DIR + "/"):
+def duration_minutes(value: str) -> float | None:
+    """Spring's simple duration format as used in this project: 90m, 9h, 30s, 1d. None if unreadable."""
+    match = re.fullmatch(r"\s*(\d+)\s*(ms|s|m|h|d)\s*", value or "")
+    if not match:
         return None
-    data_dir = Path(env.get("MARKETGUARD_DATA_DIR") or "./data")
-    if not data_dir.is_absolute():
-        data_dir = root / data_dir
-    return data_dir / container_path[len(CONTAINER_DATA_DIR) + 1:]
+    amount, unit = int(match.group(1)), match.group(2)
+    return amount * {"ms": 1 / 60000, "s": 1 / 60, "m": 1, "h": 60, "d": 1440}[unit]
 
 
-def check_env(env: dict[str, str], report: Report) -> None:
-    for key in REQUIRED_SECRETS:
-        (report.ok if env.get(key) else report.fail)(f"{key} is {'set' if env.get(key) else 'empty'}")
-    if env.get("COLLECTOR_ENABLED", "").lower() == "true":
-        report.ok("COLLECTOR_ENABLED=true")
-    else:
-        report.fail("COLLECTOR_ENABLED must be true for the run")
-    security = env.get("MARKETGUARD_SECURITY_ENABLED", "true").lower() != "false"
-    if security and not (env.get("MARKETGUARD_ADMIN_USERNAME") and env.get("MARKETGUARD_ADMIN_PASSWORD")):
-        report.fail("security is on but MARKETGUARD_ADMIN_USERNAME/PASSWORD are not both set")
-    elif security:
-        report.ok("operator login is configured")
+class Settings:
+    """What the app container will receive: its environment and the host folder mounted at /data."""
+
+    def __init__(self, app_env: dict[str, str], postgres_env: dict[str, str], data_dir: Path | None, source: str):
+        self.app_env = app_env
+        self.postgres_env = postgres_env
+        self.data_dir = data_dir
+        self.source = source
+
+    @staticmethod
+    def from_compose(config: dict, root: Path) -> "Settings":
+        services = config.get("services", {})
+        app = services.get(APP_SERVICE, {})
+        data_dir = None
+        for volume in app.get("volumes", []):
+            if isinstance(volume, dict) and volume.get("target") == CONTAINER_DATA_DIR and volume.get("source"):
+                data_dir = Path(volume["source"])
+        return Settings(dict(app.get("environment") or {}), dict(services.get("postgres", {}).get("environment") or {}),
+                        data_dir, "docker compose config")
+
+    @staticmethod
+    def from_env_file(values: dict[str, str], root: Path) -> "Settings":
+        data_dir = Path(values.get("MARKETGUARD_DATA_DIR") or "./data")
+        return Settings(values, values, data_dir if data_dir.is_absolute() else root / data_dir, ".env")
+
+    def value(self, key: str) -> str:
+        return self.app_env.get(key) or self.postgres_env.get(key) or ""
+
+
+def check_settings(settings: Settings, report: Report) -> None:
+    for key, label in REQUIRED_VALUES.items():
+        report.check(bool(settings.value(key)), f"{label} is {'set' if settings.value(key) else 'empty'}")
+    report.check(settings.value("COLLECTOR_ENABLED").lower() == "true", "collector is enabled (COLLECTOR_ENABLED=true)")
+    security = settings.value("MARKETGUARD_SECURITY_ENABLED").lower() != "false"
+    if security:
+        report.check(bool(settings.value("MARKETGUARD_ADMIN_USERNAME") and settings.value("MARKETGUARD_ADMIN_PASSWORD")),
+                     "operator login is configured")
     else:
         report.warn("security is off: keep the port on loopback only")
+    minutes = duration_minutes(settings.value("SNAPSHOT_RETENTION") or "90m")
+    report.check(minutes is not None and minutes >= MINIMUM_RETENTION_MINUTES,
+                 "snapshot retention covers a whole session for the after-close check "
+                 f"(set SNAPSHOT_RETENTION=9h; need at least {MINIMUM_RETENTION_MINUTES // 60}h)")
 
 
-def check_data(env: dict[str, str], root: Path, report: Report) -> tuple[int, float]:
-    symbols_setting = env.get("SCAN_SYMBOLS_FILE", "")
-    sectors_setting = env.get("OUTCOME_SECTORS_FILE", "")
+def check_data(settings: Settings, root: Path, report: Report) -> tuple[int, float]:
     codes: list[str] = []
     sectors: dict[str, str] = {}
-    for key, setting in (("SCAN_SYMBOLS_FILE", symbols_setting), ("OUTCOME_SECTORS_FILE", sectors_setting)):
-        path = host_path(env, setting, root)
-        if path is None:
-            report.fail(f"{key} must point inside {CONTAINER_DATA_DIR}/ (e.g. {CONTAINER_DATA_DIR}/symbols.csv), "
-                        f"found {setting or 'nothing'}")
+    data_dir = settings.data_dir.resolve() if settings.data_dir else None
+    if data_dir is None:
+        report.fail(f"nothing is mounted at {CONTAINER_DATA_DIR} in the {APP_SERVICE} service")
+        return 0, 0.0
+    for key in ("SCAN_SYMBOLS_FILE", "OUTCOME_SECTORS_FILE"):
+        setting = settings.value(key)
+        if not setting.startswith(CONTAINER_DATA_DIR + "/"):
+            report.fail(f"{key} must point inside {CONTAINER_DATA_DIR}/ (e.g. {CONTAINER_DATA_DIR}/symbols.csv)")
+            continue
+        path = (data_dir / setting[len(CONTAINER_DATA_DIR) + 1:]).resolve()
+        if not path.is_relative_to(data_dir):
+            report.fail(f"{key} leaves the mounted folder")
             continue
         if not path.is_file():
-            report.fail(f"{key}: {path.relative_to(root) if path.is_relative_to(root) else path} does not exist")
+            report.fail(f"{key}: {path.name} is not in the mounted folder {data_dir}")
             continue
         text = decode(path.read_bytes())
         if key == "SCAN_SYMBOLS_FILE":
             codes = symbol_codes(text)
+            # An empty or header-only file makes the app fall back to the 35-symbol demo list.
+            report.check(len(codes) >= MINIMUM_SYMBOLS,
+                         f"scan universe: {len(codes)} symbols (need at least {MINIMUM_SYMBOLS} for a full-market run)")
         else:
             sectors = sector_map(text)
-    if codes:
-        (report.ok if len(codes) >= MINIMUM_SYMBOLS else report.fail)(
-            f"scan universe: {len(codes)} symbols (need at least {MINIMUM_SYMBOLS} for a full-market run)")
     coverage = 0.0
     if codes and sectors:
         coverage = sum(code in sectors for code in codes) / len(codes)
@@ -168,74 +215,78 @@ def check_data(env: dict[str, str], root: Path, report: Report) -> tuple[int, fl
     return len(codes), coverage
 
 
-def run(command: list[str], root: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
+def run(command: list[str], root: Path) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return None
 
 
-def check_docker(root: Path, report: Report) -> None:
+def load_settings(root: Path, report: Report) -> Settings | None:
     info = run(["docker", "info", "--format", "{{.ServerVersion}}"], root)
-    if info.returncode != 0:
+    if info is None:
+        report.fail("Docker CLI not found (install OrbStack or Docker Desktop)")
+    elif info.returncode != 0:
         report.fail("Docker is not running (start OrbStack or Docker Desktop)")
-        return
-    report.ok(f"Docker {info.stdout.strip()} is running")
-    config = run(["docker", "compose", "config", "--quiet"], root)
-    (report.ok if config.returncode == 0 else report.fail)(
-        "compose.yaml resolves with this .env" if config.returncode == 0
-        else "docker compose config failed: " + config.stderr.strip().splitlines()[-1])
+    else:
+        report.ok(f"Docker {info.stdout.strip()} is running")
+        config = run(["docker", "compose", "config", "--format", "json"], root)
+        if config is not None and config.returncode == 0:
+            report.ok("compose.yaml resolves; checking the settings Compose will pass to the app")
+            return Settings.from_compose(json.loads(config.stdout), root)
+        report.fail("docker compose config failed (check .env)")
+    env_file = root / ".env"
+    if not env_file.is_file():
+        report.fail(".env not found (copy .env.example)")
+        return None
+    report.warn("checking .env directly; exported shell variables could still change what Compose uses")
+    return Settings.from_env_file(read_env_text(env_file.read_text(encoding="utf-8")), root)
 
 
 def check_git(root: Path, report: Report) -> str:
-    sha = run(["git", "rev-parse", "--short", "HEAD"], root).stdout.strip()
-    branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root).stdout.strip()
-    dirty = run(["git", "status", "--porcelain", "--untracked-files=no"], root).stdout.strip()
-    if dirty:
-        report.fail("tracked files have uncommitted changes; the run must start from a commit")
-    else:
-        report.ok(f"clean checkout at {sha} ({branch})")
+    sha = (run(["git", "rev-parse", "--short", "HEAD"], root) or subprocess.CompletedProcess([], 1, "", "")).stdout.strip()
+    branch = (run(["git", "rev-parse", "--abbrev-ref", "HEAD"], root) or subprocess.CompletedProcess([], 1, "", "")).stdout.strip()
+    tracked = run(["git", "status", "--porcelain", "--untracked-files=no"], root)
+    # The image is built from the working tree, so untracked files in build inputs would ship without
+    # being in the recorded commit.
+    build_inputs = run(["git", "status", "--porcelain", "--untracked-files=all", "--", *BUILD_INPUTS], root)
+    report.check(tracked is not None and not tracked.stdout.strip(),
+                 f"no uncommitted changes to tracked files at {sha} ({branch})")
+    report.check(build_inputs is not None and not build_inputs.stdout.strip(),
+                 "no untracked files in the image build inputs (" + ", ".join(BUILD_INPUTS) + ")")
     if branch != "main":
         report.warn("not on main: record why in the run record")
     return sha
 
 
-def check_sleep(report: Report) -> None:
+def check_sleep(root: Path, report: Report) -> None:
     if sys.platform != "darwin":
         return
-    settings = run(["pmset", "-g"], Path.cwd()).stdout
-    match = re.search(r"^\s*sleep\s+(\d+)(.*)$", settings, re.MULTILINE)
+    result = run(["pmset", "-g"], root)
+    match = re.search(r"^\s*sleep\s+(\d+)(.*)$", result.stdout if result else "", re.MULTILINE)
     if not match:
         return
-    minutes, note = int(match.group(1)), match.group(2)
+    minutes, note = int(match.group(1)), match.group(2).strip().strip("()")
     if minutes == 0:
         report.ok("system sleep is disabled")
     elif "prevented" in note:
-        report.warn(f"system sleeps after {minutes} min; currently {note.strip().strip('()')} "
+        report.warn(f"system sleeps after {minutes} min; currently {note} "
                     "- keep it prevented during 08:50-16:40 KST on every trading day")
     else:
         report.fail(f"system sleeps after {minutes} min with nothing preventing it")
 
 
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--env", default=".env", help="environment file used by docker compose")
-    parser.add_argument("--skip-docker", action="store_true", help="do not check Docker or compose")
-    args = parser.parse_args(argv[1:])
+def main() -> int:
     root = Path(__file__).resolve().parent.parent
-    env_path = (root / args.env) if not Path(args.env).is_absolute() else Path(args.env)
     report = Report()
-
-    print("Environment")
-    if not env_path.is_file():
-        report.fail(f"{args.env} not found (copy .env.example)")
-        env = {}
-    else:
-        env = read_env(env_path)
-        check_env(env, report)
+    print("Docker and settings")
+    settings = load_settings(root, report)
+    if settings is not None:
+        check_settings(settings, report)
     print("Data files")
-    symbols, coverage = check_data(env, root, report)
+    symbols, coverage = check_data(settings, root, report) if settings else (0, 0.0)
     print("Host")
-    if not args.skip_docker:
-        check_docker(root, report)
-    check_sleep(report)
+    check_sleep(root, report)
     print("Code")
     sha = check_git(root, report)
 
@@ -250,4 +301,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

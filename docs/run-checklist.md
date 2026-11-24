@@ -25,7 +25,9 @@
   MARKETGUARD_DATA_DIR=./data
   SCAN_SYMBOLS_FILE=/data/symbols.csv
   OUTCOME_SECTORS_FILE=/data/sectors.csv
+  SNAPSHOT_RETENTION=9h   # 장 마감 뒤 점검이 그날 09:00부터의 수집 공백을 볼 수 있게
   ```
+  사전 점검은 `docker compose config`로 Compose가 실제로 앱에 넘길 값을 확인합니다. 셸에서 `export`한 변수도 반영되니, 수집 기간에는 이 변수들을 셸에 따로 export하지 않습니다.
 
 ### Mac
 - [ ] **OrbStack**을 켜고, 설정에서 "로그인 시 시작"을 켭니다. 컨테이너는 `restart: unless-stopped`라 Mac이 재부팅돼도 다시 올라옵니다.
@@ -62,13 +64,13 @@
 
 ## 3. 매일 (장 마감 뒤 몇 분)
 
-- [ ] 상태를 확인합니다.
+- [ ] **15:35–18:00 사이에** 상태를 확인합니다. 18:00이 지나면 그날 아침 스냅샷이 지워져 오전 공백을 확인할 수 없습니다.
   ```bash
   ./scripts/run_status.sh
   ```
-  - 장중에 확인하면 `latest_snapshot`의 `age`가 1분 안쪽이어야 하고, `symbols_last_90m`이 유니버스 종목 수에 가까워야 합니다.
-  - 70분 지난 신호는 거의 모두 `complete`여야 합니다. `none_recorded`가 늘면 기록기가 멈춘 것입니다.
-- [ ] 문제가 있었던 날은 실행 기록의 "수집 중단"에 날짜와 이유를 적고, 그 거래일은 20일에서 빼고 하루 더 수집합니다.
+  - **정상 수집일**: 첫 표에서 `buckets_so_far`가 78이고 `with_data`도 78(`empty_buckets`가 `-`)이며, `near_full_universe`가 74 이상(95%)입니다.
+  - 70분 지난 신호는 거의 모두 `all_offsets_recorded`여야 하고, 14:57 이전 신호(`before_1457`)는 대부분 `usable_30m`이어야 합니다. `none_recorded`가 늘면 기록기가 멈춘 것입니다.
+- [ ] 정상 수집일이 아니면 실행 기록의 "수집 중단"에 날짜와 이유를 적습니다. **그날은 아침에 모은 신호까지 통째로 분석에서 뺍니다**(`--exclude-day`). 20거래일에도 세지 않고, 하루 더 수집합니다.
 
 **하지 말 것**
 - 임계값·`outcome.*`·스캔 주기·watch-list 변경, `git pull` 뒤 다시 빌드
@@ -77,6 +79,6 @@
 
 ## 4. 끝난 뒤
 
-- [ ] 마지막 거래일 다음 날 [운영 문서 6단계](operations.md#signal-price-paths-and-full-universe-runs)대로 CSV를 받고 분석 스크립트를 돌립니다. `--sessions`에는 실제 수집한 거래일 수를 넣습니다.
+- [ ] 마지막 거래일 다음 날 [운영 문서 6단계](operations.md#signal-price-paths-and-full-universe-runs)대로 CSV를 받고 분석 스크립트를 돌립니다. `--sessions`에는 정상 수집일 수를, 수집 중단 날짜마다 `--exclude-day`를 넣습니다.
 - [ ] CSV의 SHA-256(`shasum -a 256 price-paths.csv`)과 결과를 `docs/results/`에 싣고, README의 검증 현황 표를 고칩니다. 결과가 나빠도 그대로 싣습니다.
 - [ ] 데이터베이스를 백업합니다([운영 문서](operations.md#backup-and-restore)).
