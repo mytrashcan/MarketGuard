@@ -1,6 +1,7 @@
 // 진입점: 해시 라우팅, 주기적 갱신, 단축키, 실시간 알림(WebSocket).
-import { RULES, escapeHtml, fmtTime, ruleLabel } from "./format.js";
+import { fmtTime, ruleLabel } from "./format.js";
 import { initTheme, toast } from "./ui.js";
+import { renderHelp } from "./help.js";
 import { focusSearch, initMarket, refreshMarket } from "./market.js";
 import { closeCaseDetail, initCases, loadCases, openCase, selectedCaseId, setFilters, stepCase } from "./cases.js";
 import { pushSignal, refreshNewCaseBadge, refreshOverview } from "./overview.js";
@@ -11,7 +12,7 @@ const VIEWS = {
     market: { title: "시장", refresh: refreshMarket, poll: 15000 },
     cases: { title: "사건", refresh: loadCases, poll: 60000 },
     insights: { title: "통계", refresh: refreshInsights, poll: 0 },
-    help: { title: "도움말", refresh: null, poll: 0 }
+    help: { title: "도움말", refresh: renderHelp, poll: 0 }
 };
 const GO_KEYS = { o: "overview", m: "market", c: "cases", s: "insights", h: "help" };
 
@@ -68,8 +69,7 @@ function schedulePoll() {
 }
 
 function renderRuleHelp() {
-    $("ruleHelp").innerHTML = Object.entries(RULES).map(([type, meta]) =>
-        `<dt>${escapeHtml(meta.label)}<span class="mono">${type}</span></dt><dd>${escapeHtml(meta.help)}</dd>`).join("");
+    renderHelp();
 }
 
 /* ---------------- 단축키 ---------------- */

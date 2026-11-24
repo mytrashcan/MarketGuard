@@ -95,5 +95,6 @@ export const api = {
     signalAnalytics: (days = 14) => getJson(`/api/analytics/signals?days=${Number(days)}`),
     audit: (limit = 100) => getJson(`/api/audit?limit=${limit}`),
     updateStatus: (id, payload) => writeApi(`/api/cases/${Number(id)}/status`, "PATCH", payload),
-    addNote: (id, note) => writeApi(`/api/cases/${Number(id)}/notes`, "POST", { note })
+    addNote: (id, note) => writeApi(`/api/cases/${Number(id)}/notes`, "POST", { note }),
+    detectionSettings: () => getJson("/api/settings/detection")
 };
