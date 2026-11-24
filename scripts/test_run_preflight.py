@@ -113,9 +113,9 @@ class DataCheckTest(unittest.TestCase):
             settings = self.write(root, KRX_SYMBOLS, KRX_SECTORS)
             (root / "src" / "main" / "resources").mkdir(parents=True)
             (root / "src" / "main" / "resources" / "application.yml").write_text(
-                'toss:\n  watch-list:\n    - "005930"\n    - "035720"\n', encoding="utf-8")
+                'toss:\n  watch-list:\n    - "005930"\n    - "035720"\n    - "035720"\n', encoding="utf-8")
             _, (symbols, _) = quietly(preflight.check_data, settings, root)
-            self.assertEqual(symbols, 3)  # 005930, 000660 from the file plus 035720 from the watch-list
+            self.assertEqual(symbols, 3)  # 005930, 000660 from the file plus 035720 once, though listed twice
 
     def test_fails_a_header_only_symbol_file(self):
         with tempfile.TemporaryDirectory() as directory:

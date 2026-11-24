@@ -228,7 +228,9 @@ def check_data(settings: Settings, root: Path, report: Report) -> tuple[int, flo
     application_yml = root / "src" / "main" / "resources" / "application.yml"
     watch_list = watch_list_codes(application_yml.read_text(encoding="utf-8")) if application_yml.is_file() else []
     if codes:
-        extras = [code for code in watch_list if code not in set(codes)]
+        file_codes = set(codes)
+        # The collector scans a repeated watch-list stock once, so count it once.
+        extras = [code for code in dict.fromkeys(watch_list) if code not in file_codes]
         codes = codes + extras
         report.ok(f"scan universe: {len(codes)} symbols (symbol file plus {len(extras)} watch-list stocks not in it)"
                   " - record this number")
