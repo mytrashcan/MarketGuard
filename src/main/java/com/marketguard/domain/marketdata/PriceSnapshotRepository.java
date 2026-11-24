@@ -3,6 +3,7 @@ package com.marketguard.domain.marketdata;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Limit;
@@ -28,6 +29,11 @@ public interface PriceSnapshotRepository extends JpaRepository<PriceSnapshot, Lo
             """)
     List<SnapshotPrice> findPricesBetween(@Param("from") Instant from, @Param("to") Instant to);
 
-    /** 오래된 스냅샷 정리용. 삭제 건수를 반환. */
-    long deleteByCapturedAtBefore(Instant cutoff);
+    /**
+     * 오래된 스냅샷 정리용. 삭제 건수를 반환.
+     * 파생 메서드(deleteBy…)는 행을 모두 엔티티로 읽은 뒤 한 건씩 지우므로 DELETE 한 문장으로 처리한다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM PriceSnapshot s WHERE s.capturedAt < :cutoff")
+    int deleteCapturedBefore(@Param("cutoff") Instant cutoff);
 }

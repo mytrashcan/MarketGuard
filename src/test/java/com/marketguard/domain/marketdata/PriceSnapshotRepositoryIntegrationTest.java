@@ -114,7 +114,7 @@ class PriceSnapshotRepositoryIntegrationTest {
 
         assertThat(repository.findByStockCodeOrderByCapturedAtDesc("005930", Limit.of(10))).hasSize(2);
 
-        long deleted = repository.deleteByCapturedAtBefore(Instant.now().minusSeconds(3600));
+        long deleted = repository.deleteCapturedBefore(Instant.now().minusSeconds(3600));
 
         assertThat(deleted).isEqualTo(1);
         assertThat(repository.findByStockCodeOrderByCapturedAtDesc("005930", Limit.of(10))).hasSize(1);
