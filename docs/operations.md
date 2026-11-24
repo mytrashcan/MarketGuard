@@ -32,6 +32,27 @@ Rotate a suspected exposed token in the secret manager, restart the app, and cle
 
 Loopback mode intentionally leaves read endpoints, including `/api/audit`, anonymous. Never combine it with a public port binding or an unauthenticated reverse proxy/tunnel: the token protects write integrity, not read confidentiality. The default remains `true`, and the Compose smoke test always verifies the HTTP Basic authenticated mode.
 
+## Signal price paths and full-universe runs
+
+Every stock signal gets a permanent price path in `signal_price_point`: for each `outcome.path-offsets` point (default 5, 15, 30 and 60 minutes) the base price at the signal, the price at that point, and the scanned-universe and same-sector median moves over the same window. Price snapshots are deleted after `maintenance.snapshot-retention` (90 minutes), so this table is the only data that lets you re-check signals later with other horizons or thresholds. Rows are raw values, not verdicts. A row with an empty `price` means no snapshot was found for that point. Signals whose snapshots were already deleted (for example during downtime) get no row; nothing is backfilled or estimated. The app refuses to start if the retention is shorter than the latest point plus two match windows and one measure interval.
+
+Download the data as CSV (one line per signal and point, last `days` KST days including today, `days=1..366`, default 31):
+
+```bash
+curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
+  "https://<host>/api/analytics/price-paths.csv?days=31"
+```
+
+Market and sector columns are filled only when enough stocks were scanned in the same window (`outcome.benchmark-minimum-samples`, 30; `outcome.sector-minimum-samples`, 5). The bundled 35-symbol seed rarely meets either, so an evaluation run should scan the full market:
+
+1. From KRX 정보데이터시스템 download the all-listed-stocks basic information CSV and the industry classification CSV. Both CP949 and UTF-8 files are accepted.
+2. Put them in `./data` (or `MARKETGUARD_DATA_DIR`) as `symbols.csv` and `sectors.csv`. Compose mounts the folder read-only at `/data`; `data/*` is git-ignored.
+3. Set `SCAN_SYMBOLS_FILE=/data/symbols.csv`, `OUTCOME_SECTORS_FILE=/data/sectors.csv` and `COLLECTOR_ENABLED=true` with Toss credentials, then restart.
+4. Check `marketguard_collector_scan_duration_seconds`. A full scan sends about one price request per 200 symbols per cycle; if a scan takes longer than `collector.poll-interval-ms` (30 s), raise the interval rather than the rate limits.
+5. Run through at least two to four weeks of regular sessions before reading the per-rule numbers. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
+
+With roughly 2,500 symbols scanned every 30 seconds, the 90-minute snapshot window holds about 450k rows; the price path adds four rows per stock signal and is never pruned automatically. Back it up with the database (see below).
+
 ## Health and metrics
 
 - `/actuator/health/liveness`: process only; anonymous for container orchestration
@@ -96,7 +117,7 @@ Migrations are forward-only. Application rollback is safe only when the older bi
 - Alert flood: disable the collector, preserve DB evidence, inspect thresholds/timestamps, then re-enable. Durable cooldown survives restart.
 - Case backlog: inspect `marketguard_cases_by_status`, filter old `NEW`/`REVIEWING` cases, and review per-rule dismissed ratios before changing any threshold. The application never tunes thresholds automatically.
 - Version conflict: reload the case detail and reapply the operator decision to the new version; never bypass optimistic locking.
-- Disk growth: snapshots retain one hour by default. Audit logs are kept forever unless `AUDIT_RETENTION` (`maintenance.audit-retention`, minimum one day, e.g. `365d`) is set; each cleanup writes its own `AUDIT_LOG_PRUNED` audit record. Anomaly records stay because cases reference them; define their retention (archive or export) before long-running production use.
+- Disk growth: snapshots retain 90 minutes by default; signal price paths are permanent. Audit logs are kept forever unless `AUDIT_RETENTION` (`maintenance.audit-retention`, minimum one day, e.g. `365d`) is set; each cleanup writes its own `AUDIT_LOG_PRUNED` audit record. Anomaly records stay because cases reference them; define their retention (archive or export) before long-running production use.
 - Institutional-flow polling is configured with `collector.institutional-flow-poll-interval-ms`; its six-hour directional cooldown is independent from the per-stock cooldown.
 
 ## Shutdown

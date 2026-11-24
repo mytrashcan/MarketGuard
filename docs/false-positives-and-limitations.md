@@ -14,7 +14,7 @@ Current context availability:
 | KOSPI/KOSDAQ market-wide institutional buy/sell amounts | available from Toss investor-trading data; current-day values are provisional |
 | sector/market relative return | post-signal outcomes are measured net of the scanned-universe median and, when `outcome.sectors-file` is set, net of the same sector's median; detection itself does not use them |
 | same-time historical baseline | calculator tested; production history/cache deferred |
-| post-signal price outcome | measured once at the configured horizon from retained snapshots, raw and net of the scanned-universe median move |
+| post-signal price outcome | measured once at the configured horizon from retained snapshots, raw and net of the scanned-universe median move; the raw price path at `outcome.path-offsets` is kept permanently for offline re-analysis |
 | disclosures, news, new listing, split, ex-dividend | external data required |
 
 The main dashboard preserves the Toss ranking order and uses each response's matching price, base price, change rate, volume, and trading amount. The legacy `/api/prices/live` “buy/sell” value is pending bid/ask quantity, not trade-side volume or investor net buying.

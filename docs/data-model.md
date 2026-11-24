@@ -8,6 +8,7 @@
 - `case_status_history`: append-only automatic and operator state changes.
 - `case_group_lock`: one row per stock or supported market symbol used only to serialize case selection/creation.
 - `anomaly_cooldown`: independent `(instrument, rule)` emission guard.
+- `signal_price_point`: permanent post-signal price path, keyed by `(anomaly_id, offset_minutes)` and deleted with its signal. Each row holds the base price at the signal, the price `offset_minutes` later, and the scanned-universe and same-sector median moves over the same window. Prices may be empty when no snapshot was found; market-wide signals (`KOSPI`, `KOSDAQ`) get no rows.
 
 JSON text columns are bounded by application item counts and validated as arrays by PostgreSQL constraints. Frequently used filters remain typed columns with indexes. Case list queries never fetch child collections; detail queries load signals, notes, and history in three bounded queries.
 

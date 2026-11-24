@@ -123,7 +123,7 @@ maintenance:
   # 감사 로그 보존 기간. 0이면 지우지 않는다(기본). 설정하면 최소 1일(예: 365d).
   audit-retention: ${AUDIT_RETENTION:0}
   snapshot-cleanup-interval: 10m
-  snapshot-retention: 1h        # 결과 측정(outcome)에 필요한 시간보다 길어야 한다
+  snapshot-retention: 90m       # 결과 측정과 가장 늦은 가격 경로 시점(outcome.path-offsets)보다 길어야 한다
 
 # 신호 사후 결과: 신호 후 horizon 뒤 가격이 신호 방향으로 움직였는지 한 번 측정해 신호에 남긴다.
 outcome:
@@ -134,6 +134,9 @@ outcome:
   # 선택: "종목코드,업종" CSV(KRX 업종분류 CSV 그대로 가능). 있으면 같은 업종 다른 종목의 변동도 빼고 판단한다.
   sectors-file: ${OUTCOME_SECTORS_FILE:}
   sector-minimum-samples: 5
+  # 신호 후 이 시점들의 가격과 시장·업종 변동을 영구 기록한다(분 단위). 스냅샷이 지워진 뒤에도
+  # 측정 시점·임계값을 바꿔 다시 분석할 수 있게 하는 원자료. 비우면 기록하지 않는다.
+  path-offsets: 5m,15m,30m,60m
 
 # 탐지 룰 임계치
 detection:

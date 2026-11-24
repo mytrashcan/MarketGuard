@@ -44,3 +44,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 운영 데이터(KRX 종목·업종 CSV) ###
+data/*
+!data/README.md
