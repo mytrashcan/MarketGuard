@@ -34,7 +34,7 @@ Loopback mode intentionally leaves read endpoints, including `/api/audit`, anony
 
 ## Signal price paths and full-universe runs
 
-Every stock signal gets a permanent price path in `signal_price_point`: for each `outcome.path-offsets` point (default 5, 15, 30 and 60 minutes) the base price at the signal, the price at that point, and the scanned-universe and same-sector median moves over the same window. Price snapshots are deleted after `maintenance.snapshot-retention` (90 minutes), so this table is the only data that lets you re-check signals later with other horizons or thresholds. Rows are raw values, not verdicts. A row with an empty `price` means no snapshot was found for that point; the CSV export also lists stock signals that have no point at all, as one line with empty point columns. Signals whose snapshots were already deleted (for example during downtime) get no row; nothing is backfilled or estimated. The app refuses to start if the retention is shorter than the latest point plus two match windows and one measure interval.
+Every stock signal gets a permanent price path in `signal_price_point`: for each `outcome.path-offsets` point (default 5, 15, 30 and 60 minutes) the base price at the signal, the price at that point, and the scanned-universe and same-sector median moves over the same window. Price snapshots are deleted after `maintenance.snapshot-retention` (`SNAPSHOT_RETENTION`, 90 minutes by default; 9 hours during a validation run so the after-close check can see the whole session), so this table is the only data that lets you re-check signals later with other horizons or thresholds. Rows are raw values, not verdicts. A row with an empty `price` means no snapshot was found for that point; the CSV export also lists stock signals that have no point at all, as one line with empty point columns. Signals whose snapshots were already deleted (for example during downtime) get no row; nothing is backfilled or estimated. The app refuses to start if the retention is shorter than the latest point plus two match windows and one measure interval.
 
 Download the data as CSV (one line per signal and point, last `days` KST days including today, `days=1..366`, default 31):
 
@@ -50,16 +50,17 @@ Market and sector columns are filled only when enough stocks were scanned in the
 3. Set `SCAN_SYMBOLS_FILE=/data/symbols.csv`, `OUTCOME_SECTORS_FILE=/data/sectors.csv` and `COLLECTOR_ENABLED=true` with Toss credentials, then restart.
 4. Check `marketguard_collector_scan_duration_seconds`. A full scan sends about one price request per 200 symbols per cycle; if a scan takes longer than `collector.poll-interval-ms` (30 s), raise the interval rather than the rate limits.
 5. Run for at least 20 regular sessions (about four weeks) before reading the per-rule numbers; the analysis script refuses confirmatory verdicts for shorter runs. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
-6. Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, wait until the recorder has written every point: the longest `outcome.path-offsets` value plus the match window and one measure interval after the close (16:35 KST with the defaults), or simply the next day. Then download the CSV for the whole run and evaluate it only as the plan specifies:
+6. Follow [run-checklist.md](run-checklist.md) for the day-by-day procedure (`scripts/run_preflight.py` before the start, `scripts/run_status.sh` after each session). Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, wait until the recorder has written every point: the longest `outcome.path-offsets` value plus the match window and one measure interval after the close (16:35 KST with the defaults), or simply the next day. Then download the CSV for the whole run and evaluate it only as the plan specifies:
 
    ```bash
    # registered first and last session dates (KST); DAYS = calendar days from FROM to today (KST), inclusive
-   # SESSIONS = regular sessions actually collected per the run record, including days without signals
+   # SESSIONS = full collection days per the run record; EXCLUDE = one --exclude-day per logged outage day
    FROM=2026-12-01 TO=2026-12-29 DAYS=40 SESSIONS=20
+   EXCLUDE=()   # e.g. EXCLUDE=(--exclude-day 2026-12-08)
    curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
      "https://<host>/api/analytics/price-paths.csv?days=$DAYS"
    mkdir -p docs/results
-   python3 scripts/analyze_price_paths.py --from "$FROM" --to "$TO" --sessions "$SESSIONS" price-paths.csv \
+   python3 scripts/analyze_price_paths.py --from "$FROM" --to "$TO" --sessions "$SESSIONS" "${EXCLUDE[@]}" price-paths.csv \
      > "docs/results/$TO.md"
    ```
 

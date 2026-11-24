@@ -66,12 +66,15 @@ public class SectorDirectory implements SectorLookup {
         }
     }
 
+    /** UTF-8(BOM 있어도 됨)로 읽고, UTF-8이 아니면 KRX 기본 인코딩(MS949)으로 읽는다. */
     static String decode(byte[] bytes) {
         try {
-            return StandardCharsets.UTF_8.newDecoder()
+            String text = StandardCharsets.UTF_8.newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes)).toString();
+            // BOM이 남으면 첫 줄의 "종목코드" 머리글을 못 알아봐 종목명을 업종으로 읽게 된다.
+            return text.startsWith("\uFEFF") ? text.substring(1) : text;
         } catch (CharacterCodingException notUtf8) {
             return new String(bytes, Charset.forName("MS949"));
         }

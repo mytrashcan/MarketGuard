@@ -7,7 +7,8 @@ Standard library only. Usage:
 
 --from and --to are the registered first and last session dates (KST, inclusive). Rows outside them are
 ignored, so the download may cover more days than the run. --sessions is the number of regular sessions
-collected according to the run record; below 20 no rule gets a confirmatory verdict.
+collected according to the run record; below 20 no rule gets a confirmatory verdict. --exclude-day drops
+every row of a day logged as a collection outage, so a partial day never contributes signals.
 
 The confirmatory section implements the pre-registered primary analysis. Everything under
 "Exploratory" is descriptive and must not be used to claim that a rule works.
@@ -92,8 +93,11 @@ def read_points(lines) -> list[Point]:
     return points
 
 
-def within_run(points: list[Point], first_day: date, last_day: date) -> list[Point]:
-    return [point for point in points if first_day <= point.day <= last_day]
+def within_run(points: list[Point], first_day: date, last_day: date,
+               excluded_days: frozenset[date] = frozenset()) -> list[Point]:
+    """Rows inside the registered dates, minus days logged as collection outages (partial days included)."""
+    return [point for point in points
+            if first_day <= point.day <= last_day and point.day not in excluded_days]
 
 
 def is_directional(direction: str) -> bool:
@@ -298,15 +302,19 @@ def _p(value: float | None) -> str:
     return "–" if value is None else f"{value:.4f}"
 
 
-def report(points: list[Point], first_day: date, last_day: date, sessions: int = MINIMUM_SESSIONS) -> str:
-    run_points = within_run(points, first_day, last_day)
+def report(points: list[Point], first_day: date, last_day: date, sessions: int = MINIMUM_SESSIONS,
+           excluded_days: frozenset[date] = frozenset()) -> str:
+    in_dates = within_run(points, first_day, last_day)
+    run_points = within_run(points, first_day, last_day, excluded_days)
     signals = first_signal_per_stock_day(run_points)
     observed_days = sorted({p.day for p in run_points})
     lines = [
         "# MarketGuard price path analysis",
         "",
         f"- Registered run: {first_day} – {last_day} (KST), {sessions} collected sessions per the run record. "
-        f"Rows outside it ignored: {len(points) - len(run_points)}",
+        f"Rows outside it ignored: {len(points) - len(in_dates)}",
+        f"- Outage days excluded (run record): {', '.join(map(str, sorted(excluded_days))) or 'none'}; "
+        f"rows dropped: {len(in_dates) - len(run_points)}",
         f"- Input in run: {len(run_points)} rows, {len({p.anomaly_id for p in run_points})} signals, "
         f"{len(signals)} directional stock-days, {len(observed_days)} days with signals"
         + (f" (first {observed_days[0]}, last {observed_days[-1]})" if observed_days else ""),
@@ -350,12 +358,15 @@ def main(argv: list[str]) -> int:
                         help="registered last session date, KST (YYYY-MM-DD)")
     parser.add_argument("--sessions", required=True, type=int,
                         help="regular sessions collected in the run, from the run record (days without signals count)")
+    parser.add_argument("--exclude-day", dest="excluded_days", action="append", default=[], type=date.fromisoformat,
+                        help="KST date logged as a collection outage in the run record (repeat for each day)")
     parser.add_argument("csv", help="file downloaded from /api/analytics/price-paths.csv")
     args = parser.parse_args(argv[1:])
     if args.last_day < args.first_day:
         parser.error("--to is before --from")
     with open(args.csv, newline="", encoding="utf-8") as source:
-        sys.stdout.write(report(read_points(source), args.first_day, args.last_day, args.sessions))
+        sys.stdout.write(report(read_points(source), args.first_day, args.last_day, args.sessions,
+                                frozenset(args.excluded_days)))
     return 0
 
 

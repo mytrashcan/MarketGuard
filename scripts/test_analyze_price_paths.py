@@ -168,9 +168,24 @@ class OutcomeTest(unittest.TestCase):
         report = analysis.report(data, *RUN)
 
         self.assertIn("Rows outside it ignored: 1", report)
+        self.assertIn("Outage days excluded (run record): none; rows dropped: 0", report)
         self.assertIn("| `PRICE_SPIKE` | 1 | 1 | 1 | 100.0% |", report)
         self.assertIn("insufficient", report)
         self.assertIn("## Exploratory", report)
+
+
+class OutageTest(unittest.TestCase):
+
+    def test_drops_every_row_of_a_logged_outage_day_before_choosing_first_signals(self):
+        data = points(
+            # the morning of an outage day: must not count even though it is inside --from/--to
+            line(1, "2026-07-31T00:10:00Z", "000001", "PRICE_SPIKE", "UP", 30, "1", "0"),
+            line(2, "2026-08-03T00:10:00Z", "000001", "PRICE_SPIKE", "UP", 30, "1", "0"))
+        kept = analysis.within_run(data, *RUN, frozenset({date(2026, 7, 31)}))
+
+        self.assertEqual([p.anomaly_id for p in kept], [2])
+        report = analysis.report(data, *RUN, excluded_days=frozenset({date(2026, 7, 31)}))
+        self.assertIn("Outage days excluded (run record): 2026-07-31; rows dropped: 1", report)
 
 
 if __name__ == "__main__":
