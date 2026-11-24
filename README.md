@@ -29,7 +29,7 @@
 | `VOLUME_SURGE` | — | 수집 전 |
 | `PRICE_VOLUME_SURGE` | — | 수집 전 |
 
-KRX 전 종목으로 정규장 20거래일 이상 운영한 뒤, 사전 등록한 계획(종목-일당 첫 신호, 거래일 단위 두 검정, Holm 보정, 실질 효과 ≥ 55%)대로 계산한 결과를 **좋든 나쁘든** 이 표에 그대로 싣습니다. 아직 운영 데이터가 없으므로 지금은 어떤 규칙도 효과가 있다고 주장하지 않습니다.
+KRX 전 종목으로 정규장 20거래일 이상 운영한 뒤([실행 체크리스트](docs/run-checklist.md)), 사전 등록한 계획(종목-일당 첫 신호, 거래일 단위 두 검정, Holm 보정, 실질 효과 ≥ 55%)대로 계산한 결과를 **좋든 나쁘든** 이 표에 그대로 싣습니다. 아직 운영 데이터가 없으므로 지금은 어떤 규칙도 효과가 있다고 주장하지 않습니다.
 
 ## 작동 방식
 
@@ -171,6 +171,7 @@ GitHub Actions와 Docker base image는 commit·digest로 고정했습니다.
 | 주제 | 문서 |
 |---|---|
 | 신호 검증 분석 계획 (사전 등록) | [analysis-plan.md](docs/analysis-plan.md) |
+| 검증 실행 체크리스트 (20거래일) | [run-checklist.md](docs/run-checklist.md) |
 | 운영·백업·지표·전 종목 운영 | [operations.md](docs/operations.md) |
 | 설계와 계층 규칙 | [architecture.md](docs/architecture.md) |
 | API 계약 | [api.md](docs/api.md) |
