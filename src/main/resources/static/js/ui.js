@@ -122,3 +122,16 @@ export const loadingLine = () => stateLine("불러오는 중…");
 export function errorLine(message, error) {
     return stateLine(`${message} ${error?.message || ""}`.trim(), { error: true });
 }
+
+/**
+ * 화면 읽기 프로그램에 짧은 상태 문장을 알린다. 큰 영역 전체를 live region으로 두면
+ * 다시 그릴 때마다 내용 전체를 읽어 버리므로, 알릴 내용만 이 한 곳으로 보낸다.
+ */
+export function announce(text) {
+    const region = document.getElementById("srStatus");
+    if (!region) return;
+    region.textContent = "";
+    // 같은 문장을 연달아 보내도 다시 읽히도록 잠시 뒤에 넣는다. requestAnimationFrame은
+    // 백그라운드 탭에서 멈추므로 쓰지 않는다.
+    setTimeout(() => { region.textContent = text; }, 50);
+}

@@ -47,7 +47,7 @@ async function route() {
     $("refreshView").hidden = !VIEWS[view].refresh;
 
     if (view === "cases") {
-        if (caseId) openCase(caseId); else closeCaseDetail();
+        if (caseId) openCase(caseId, { userOpened: true }); else closeCaseDetail();
     }
     if (changed) {
         await refreshCurrent();

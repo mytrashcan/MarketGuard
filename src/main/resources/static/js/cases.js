@@ -5,7 +5,7 @@ import {
     escapeHtml, fmtDateTime, fmtMetric, fmtRelative, ruleLabel, scoreHtml, severityDot, statusDot,
     statusLabel, stockLabel, toBarTime
 } from "./format.js";
-import { errorLine, loadingLine, stateLine, storage, toast } from "./ui.js";
+import { announce, errorLine, loadingLine, stateLine, storage, toast } from "./ui.js";
 import { chartsAvailable, createCandleChart } from "./charts.js";
 
 const PAGE_SIZE = 25;
@@ -19,7 +19,10 @@ const state = {
     detail: null,
     chart: null,
     listRequest: 0,
-    detailRequest: 0
+    detailRequest: 0,
+    // 사용자가 요청한 알림·포커스는 그 뒤 조용한 갱신이 요청을 대신해도 마지막 결과에서 처리한다.
+    announceListPending: false,
+    focusCaseIdPending: null
 };
 
 const $ = id => document.getElementById(id);
@@ -43,8 +46,8 @@ export function initCases({ onNavigate }) {
         event.target.value = value;
         if (value.length === 0 || value.length === 6) setFilters({ stockCode: value });
     });
-    $("casePrev").addEventListener("click", () => { if (state.page > 0) { state.page--; loadCases(); } });
-    $("caseNext").addEventListener("click", () => { state.page++; loadCases(); });
+    $("casePrev").addEventListener("click", () => { if (state.page > 0) { state.page--; loadCases({ announceResult: true }); } });
+    $("caseNext").addEventListener("click", () => { state.page++; loadCases({ announceResult: true }); });
     $("caseList").addEventListener("click", event => {
         const row = event.target.closest("[data-case-id]");
         if (row) navigate(`case-${Number(row.dataset.caseId)}`);
@@ -55,7 +58,7 @@ export function setFilters(patch) {
     state.filters = { ...state.filters, ...patch };
     state.page = 0;
     syncFilterControls();
-    return loadCases();
+    return loadCases({ announceResult: true });
 }
 
 function syncFilterControls() {
@@ -78,8 +81,10 @@ function queryParams() {
     return params;
 }
 
-export async function loadCases() {
+/** announceResult: 사용자가 필터·페이지를 바꿨을 때만 결과 건수를 읽어 준다(주기적 갱신은 조용히). */
+export async function loadCases({ announceResult = false } = {}) {
     const request = ++state.listRequest;
+    if (announceResult) state.announceListPending = true;
     const list = $("caseList");
     if (state.cases.length === 0) list.innerHTML = `<div style="padding:0 16px">${loadingLine()}</div>`;
     try {
@@ -93,12 +98,20 @@ export async function loadCases() {
         $("casePage").textContent = `${state.page + 1} / ${totalPages}`;
         $("casePrev").disabled = state.page <= 0;
         $("caseNext").disabled = state.page + 1 >= totalPages;
+        if (state.announceListPending) {
+            state.announceListPending = false;
+            announce(`사건 ${total.toLocaleString("ko-KR")}건, ${state.page + 1}쪽`);
+        }
         list.innerHTML = state.cases.length
             ? state.cases.map(caseRow).join("")
             : `<div style="padding:0 16px">${stateLine(state.filters.status === "OPEN" ? "처리할 사건이 없습니다." : "조건에 맞는 사건이 없습니다.")}</div>`;
     } catch (error) {
         if (request !== state.listRequest) return;
         list.innerHTML = `<div style="padding:0 16px">${errorLine("사건 목록을 불러오지 못했습니다.", error)}</div>`;
+        if (state.announceListPending) {
+            state.announceListPending = false;
+            announce(`사건 목록을 불러오지 못했습니다. ${error.message || ""}`.trim());
+        }
     }
 }
 
@@ -135,8 +148,13 @@ export function stepCase(offset) {
 
 /* ---------------- 상세 ---------------- */
 
-export async function openCase(id) {
+/**
+ * userOpened: 사용자가 사건을 연 경우에만 제목으로 포커스를 옮기고 알린다.
+ * 새로고침·실시간 갱신으로 다시 그릴 때는 포커스를 빼앗지 않는다.
+ */
+export async function openCase(id, { userOpened = false } = {}) {
     const request = ++state.detailRequest;
+    if (userOpened) state.focusCaseIdPending = id;
     state.selectedId = id;
     document.querySelectorAll("[data-case-id]").forEach(row =>
         row.setAttribute("aria-current", String(Number(row.dataset.caseId) === id)));
@@ -148,14 +166,26 @@ export async function openCase(id) {
         if (request !== state.detailRequest) return;
         state.detail = detail;
         renderDetail(detail);
+        if (state.focusCaseIdPending === detail.id) {
+            state.focusCaseIdPending = null;
+            $("caseHeading")?.focus();
+            announce(`사건 ${Number(detail.id)}, ${detail.stockName || detail.stockCode}, ${detail.title}`);
+        }
     } catch (error) {
         if (request !== state.detailRequest) return;
         host.innerHTML = `<div class="detail">${crumb(id)}${errorLine("사건을 불러오지 못했습니다.", error)}</div>`;
         bindCrumb();
+        if (state.focusCaseIdPending === id) {
+            state.focusCaseIdPending = null;
+            announce(`사건 ${Number(id)}을 불러오지 못했습니다. ${error.message || ""}`.trim());
+        }
     }
 }
 
 export function closeCaseDetail() {
+    // 아직 도착하지 않은 사건 응답이 닫은 뒤에 화면을 그리거나 포커스·알림을 가져가지 않게 무효화한다.
+    state.detailRequest++;
+    state.focusCaseIdPending = null;
     state.selectedId = null;
     document.querySelectorAll("[data-case-id]").forEach(row => row.setAttribute("aria-current", "false"));
     $("casesLayout").classList.remove("showing-detail");
@@ -175,7 +205,7 @@ function renderDetail(detail) {
     const signals = detail.signals || [];
     $("caseDetail").innerHTML = `<div class="detail">` +
         `<header class="detail-top">${crumb(detail.id)}` +
-        `<div class="detail-title"><div><h2>${escapeHtml(detail.stockName || detail.stockCode)}<span class="code">${escapeHtml(detail.stockCode)}</span></h2>` +
+        `<div class="detail-title"><div><h2 id="caseHeading" tabindex="-1">${escapeHtml(detail.stockName || detail.stockCode)}<span class="code">${escapeHtml(detail.stockCode)}</span></h2>` +
         `<p class="lead">${escapeHtml(detail.title)}. ${escapeHtml(detail.summary)}</p></div>` +
         `<div class="big ${escapeHtml(detail.attentionLevel)}" title="관심도 ${escapeHtml(ATTENTION[detail.attentionLevel] || "")}">${Number(detail.score)}<small>/100</small></div></div>` +
         `</header>` +
