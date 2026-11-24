@@ -50,6 +50,11 @@ class ParsingTest(unittest.TestCase):
         values = preflight.read_env_text("# comment\nA=1\nB='two # words'\nC=\"x=y\"\nD=marketguard # local\nE=\n")
         self.assertEqual(values, {"A": "1", "B": "two # words", "C": "x=y", "D": "marketguard", "E": ""})
 
+    def test_reads_the_watch_list_block_only(self):
+        yml = ('toss:\n  watch-list:          # focus\n    - "005930"   # 삼성전자\n    - 000660\n'
+               "\n# next section\ncollector:\n  enabled: false\n  - \"111111\"\n")
+        self.assertEqual(preflight.watch_list_codes(yml), ["005930", "000660"])
+
     def test_reads_spring_durations(self):
         self.assertEqual(preflight.duration_minutes("9h"), 540)
         self.assertEqual(preflight.duration_minutes("90m"), 90)
@@ -101,6 +106,16 @@ class DataCheckTest(unittest.TestCase):
             report, (symbols, coverage) = quietly(preflight.check_data, settings, Path(directory))
             self.assertEqual((symbols, coverage), (2, 0.5))
             self.assertTrue(report.failed)  # 2 symbols is far below a full-market universe
+
+    def test_registered_universe_includes_watch_list_stocks_missing_from_the_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = self.write(root, KRX_SYMBOLS, KRX_SECTORS)
+            (root / "src" / "main" / "resources").mkdir(parents=True)
+            (root / "src" / "main" / "resources" / "application.yml").write_text(
+                'toss:\n  watch-list:\n    - "005930"\n    - "035720"\n', encoding="utf-8")
+            _, (symbols, _) = quietly(preflight.check_data, settings, root)
+            self.assertEqual(symbols, 3)  # 005930, 000660 from the file plus 035720 from the watch-list
 
     def test_fails_a_header_only_symbol_file(self):
         with tempfile.TemporaryDirectory() as directory:

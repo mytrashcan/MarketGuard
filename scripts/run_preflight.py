@@ -125,6 +125,23 @@ def sector_map(text: str) -> dict[str, str]:
     return result
 
 
+def watch_list_codes(application_yml: str) -> list[str]:
+    """The toss.watch-list codes from application.yml. The collector scans these on top of the symbol file."""
+    codes, inside = [], False
+    for line in application_yml.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("watch-list:"):
+            inside = True
+            continue
+        if inside:
+            match = re.match(r'-\s*["\']?(\d{6})["\']?', stripped)
+            if match:
+                codes.append(match.group(1))
+            elif stripped and not stripped.startswith("#"):
+                break
+    return codes
+
+
 def duration_minutes(value: str) -> float | None:
     """Spring's simple duration format as used in this project: 90m, 9h, 30s, 1d. None if unreadable."""
     match = re.fullmatch(r"\s*(\d+)\s*(ms|s|m|h|d)\s*", value or "")
@@ -203,9 +220,18 @@ def check_data(settings: Settings, root: Path, report: Report) -> tuple[int, flo
             codes = symbol_codes(text)
             # An empty or header-only file makes the app fall back to the 35-symbol demo list.
             report.check(len(codes) >= MINIMUM_SYMBOLS,
-                         f"scan universe: {len(codes)} symbols (need at least {MINIMUM_SYMBOLS} for a full-market run)")
+                         f"symbol file: {len(codes)} symbols (need at least {MINIMUM_SYMBOLS} for a full-market run)")
         else:
             sectors = sector_map(text)
+    # The collector scans the symbol file plus the watch-list, so the registered universe is their union;
+    # otherwise watch-list stocks missing from the file would inflate the daily coverage check.
+    application_yml = root / "src" / "main" / "resources" / "application.yml"
+    watch_list = watch_list_codes(application_yml.read_text(encoding="utf-8")) if application_yml.is_file() else []
+    if codes:
+        extras = [code for code in watch_list if code not in set(codes)]
+        codes = codes + extras
+        report.ok(f"scan universe: {len(codes)} symbols (symbol file plus {len(extras)} watch-list stocks not in it)"
+                  " - record this number")
     coverage = 0.0
     if codes and sectors:
         coverage = sum(code in sectors for code in codes) / len(codes)
