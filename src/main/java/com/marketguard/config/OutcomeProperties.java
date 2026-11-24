@@ -3,7 +3,10 @@ package com.marketguard.config;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
+import java.util.List;
+import java.util.TreeSet;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -15,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
  * @param benchmarkMinimumSamples 시장 기준(스캔 종목 변동률 중앙값)을 낼 최소 종목 수. 미만이면 시장 보정을 하지 않는다
  * @param sectorsFile 종목별 업종 CSV 경로. 비우면 업종 보정을 하지 않는다
  * @param sectorMinimumSamples 업종 기준을 낼 최소 종목 수(신호 종목 제외)
+ * @param pathOffsets 가격 경로를 영구 기록할 신호 후 시점들(분 단위). 비우면 경로를 기록하지 않는다
  */
 @Validated
 @ConfigurationProperties(prefix = "outcome")
@@ -24,8 +28,17 @@ public record OutcomeProperties(
         @NotNull Duration measureInterval,
         @Min(1) int benchmarkMinimumSamples,
         String sectorsFile,
-        @Min(1) int sectorMinimumSamples
+        @Min(1) int sectorMinimumSamples,
+        List<Duration> pathOffsets
 ) {
+    /** 가격 경로를 기록하지 않는 설정. */
+    public OutcomeProperties(Duration horizon, Duration matchWindow, Duration measureInterval,
+                             int benchmarkMinimumSamples, String sectorsFile, int sectorMinimumSamples) {
+        this(horizon, matchWindow, measureInterval, benchmarkMinimumSamples, sectorsFile, sectorMinimumSamples,
+                List.of());
+    }
+
+    @ConstructorBinding
     public OutcomeProperties {
         if (horizon != null && (horizon.compareTo(Duration.ofMinutes(1)) < 0 || horizon.compareTo(Duration.ofHours(6)) > 0)) {
             throw new IllegalArgumentException("outcome horizon must be between 1 minute and 6 hours");
@@ -37,10 +50,26 @@ public record OutcomeProperties(
         if (measureInterval != null && measureInterval.compareTo(Duration.ofSeconds(10)) < 0) {
             throw new IllegalArgumentException("outcome measure interval must be at least 10 seconds");
         }
+        pathOffsets = pathOffsets == null ? List.of() : List.copyOf(new TreeSet<>(pathOffsets));
+        for (Duration offset : pathOffsets) {
+            if (offset.compareTo(Duration.ofMinutes(1)) < 0 || offset.compareTo(Duration.ofHours(6)) > 0
+                    || offset.toSecondsPart() != 0 || offset.toNanosPart() != 0) {
+                throw new IllegalArgumentException("outcome path offsets must be whole minutes between 1 minute and 6 hours");
+            }
+        }
     }
 
     /** 측정에 필요한 스냅샷이 남아 있어야 하는 가장 긴 시간. 스냅샷 보존 기간이 이보다 길어야 한다. */
     public Duration requiredSnapshotRetention() {
-        return horizon.plus(matchWindow.multipliedBy(2)).plus(measureInterval);
+        return longestOffset().plus(matchWindow.multipliedBy(2)).plus(measureInterval);
+    }
+
+    /** 측정 시점(horizon)과 가격 경로 시점 중 가장 늦은 것. */
+    private Duration longestOffset() {
+        if (pathOffsets.isEmpty()) {
+            return horizon;
+        }
+        Duration lastOffset = pathOffsets.get(pathOffsets.size() - 1);
+        return lastOffset.compareTo(horizon) > 0 ? lastOffset : horizon;
     }
 }

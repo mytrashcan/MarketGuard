@@ -37,6 +37,8 @@ services:
       TOSS_CLIENT_ID: ${TOSS_CLIENT_ID:-}
       TOSS_CLIENT_SECRET: ${TOSS_CLIENT_SECRET:-}
       AUDIT_RETENTION: ${AUDIT_RETENTION:-0}
+      SCAN_SYMBOLS_FILE: ${SCAN_SYMBOLS_FILE:-}
+      OUTCOME_SECTORS_FILE: ${OUTCOME_SECTORS_FILE:-}
     ports:
       - "127.0.0.1:${HOST_PORT:-5050}:5050"
     healthcheck:
@@ -46,6 +48,9 @@ services:
       retries: 12
       start_period: 30s
     read_only: true
+    volumes:
+      # 전 종목·업종 CSV를 넣는 읽기 전용 폴더. 비어 있으면 시연용 기본 종목만 스캔한다.
+      - ${MARKETGUARD_DATA_DIR:-./data}:/data:ro
     tmpfs:
       - /tmp:size=64m,mode=1777
     cap_drop:
