@@ -2,6 +2,7 @@ package com.marketguard.dashboard;
 
 import com.marketguard.application.CaseNotFoundException;
 import com.marketguard.application.StaleCaseVersionException;
+import com.marketguard.collector.auth.TossTokenUnavailableException;
 import com.marketguard.collector.client.TossApiException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
@@ -69,7 +70,8 @@ public class ApiExceptionHandler {
                 .body(new ApiError("MARKET_DATA_UNAVAILABLE", "Market data is temporarily unavailable"));
     }
 
-    @ExceptionHandler({ResourceAccessException.class, CallNotPermittedException.class, RequestNotPermitted.class})
+    @ExceptionHandler({ResourceAccessException.class, CallNotPermittedException.class, RequestNotPermitted.class,
+            TossTokenUnavailableException.class})
     ResponseEntity<ApiError> transientUpstream(Exception ignored) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(new ApiError("MARKET_DATA_UNAVAILABLE", "Market data is temporarily unavailable"));

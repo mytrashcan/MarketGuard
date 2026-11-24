@@ -17,21 +17,20 @@ public final class TossApiErrorHandler implements RestClient.ResponseSpec.ErrorH
 
     @Override
     public void handle(HttpRequest request, ClientHttpResponse response) throws IOException {
-        Duration retryAfter = parseRetryAfter(response.getHeaders().getFirst("Retry-After"));
+        Duration requested = parseRetryAfter(response.getHeaders().getFirst("Retry-After"));
+        // 한 호출 안의 재시도는 상한까지만 기다리고, 호출 사이의 대기(토큰 발급 등)는 Toss가 요청한 만큼 기다린다.
+        Duration capped = requested == null || requested.compareTo(maxRetryAfter) <= 0 ? requested : maxRetryAfter;
         String requestId = response.getHeaders().getFirst("X-Request-Id");
-        throw new TossApiException(response.getStatusCode(), retryAfter, requestId);
+        throw new TossApiException(response.getStatusCode(), capped, requested, requestId);
     }
 
-    private Duration parseRetryAfter(String rawValue) {
+    private static Duration parseRetryAfter(String rawValue) {
         if (rawValue == null || rawValue.isBlank()) {
             return null;
         }
         try {
             Duration parsed = Duration.ofSeconds(Long.parseLong(rawValue.trim()));
-            if (parsed.isNegative()) {
-                return null;
-            }
-            return parsed.compareTo(maxRetryAfter) > 0 ? maxRetryAfter : parsed;
+            return parsed.isNegative() ? null : parsed;
         } catch (NumberFormatException ignored) {
             // Toss documents delta-seconds. Unsupported HTTP-date values fall back to exponential backoff.
             return null;

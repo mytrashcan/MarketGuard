@@ -109,12 +109,24 @@ ssh -N -L 5050:127.0.0.1:5050 ubuntu@<예약 IP>
 ssh ubuntu@<예약 IP> 'cd MarketGuard && ./scripts/run_status.sh <등록한 종목 수>'
 ```
 
-**백업**: 주 1회 이상 데이터베이스를 내려받아 둡니다([운영 문서](operations.md#backup-and-restore)). 인스턴스가 사라져도 결과를 잃지 않기 위해서입니다.
+**백업**: 주 1회 이상 서버에서 백업을 만들고([운영 문서](operations.md#backup-and-restore)의 명령, DB 계정은 컨테이너 안에서 읽음) `backup ok`가 나온 파일만 Mac으로 가져옵니다. 인스턴스가 사라져도 결과를 잃지 않기 위해서입니다.
+
+```bash
+scp ubuntu@<예약 IP>:'~/MarketGuard/marketguard-*.dump' ~/marketguard-backups/
+```
+
+**실행 기록 커밋**: 서버에는 Git 계정이나 쓰기 권한을 두지 않습니다. 탐지 설정 파일을 `scp`로 Mac에 가져와 Mac의 레포에서 커밋·푸시합니다([체크리스트 2단계](run-checklist.md#2-시작-전-첫-거래일-전날)).
 
 **하지 말 것**: 체크리스트의 금지 사항과 같습니다. 특히 서버에서 `git pull` 뒤 다시 빌드하지 않습니다.
 
 ## 6. 끝난 뒤
 
-- 체크리스트 4단계대로 CSV를 받고 분석합니다. 서버에서 받은 CSV는 `scp`로 Mac에 가져옵니다.
+- 체크리스트 4단계대로 분석합니다. CSV는 서버에서 받아 Mac으로 가져옵니다. 로그인을 켜 둔 경우 `-u <관리자 아이디>`를 붙이면 curl이 비밀번호를 묻습니다.
+  ```bash
+  ssh ubuntu@<예약 IP> 'cd MarketGuard && curl --fail -o price-paths.csv "http://127.0.0.1:5050/api/analytics/price-paths.csv?days=<일수>"'
+  ```
+  ```bash
+  scp ubuntu@<예약 IP>:~/MarketGuard/price-paths.csv .
+  ```
 - 수집을 멈추려면 `docker compose stop`을 씁니다. `docker compose down -v`는 데이터베이스까지 지우므로 백업을 확인한 뒤에만 씁니다.
 - 인스턴스와 예약 IP를 지우기 전에, 토스 개발자 콘솔에서 그 IP 등록도 정리합니다.

@@ -39,8 +39,8 @@ Every stock signal gets a permanent price path in `signal_price_point`: for each
 Download the data as CSV (one line per signal and point, last `days` KST days including today, `days=1..366`, default 31):
 
 ```bash
-curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
-  "https://<host>/api/analytics/price-paths.csv?days=31"
+# on the app host; add -u <admin user> (curl prompts for the password) when login is enabled
+curl --fail -o price-paths.csv "http://127.0.0.1:5050/api/analytics/price-paths.csv?days=31"
 ```
 
 Market and sector columns are filled only when enough stocks were scanned in the same window (`outcome.benchmark-minimum-samples`, 30; `outcome.sector-minimum-samples`, 5). The bundled 35-symbol seed rarely meets either, so an evaluation run should scan the full market:
@@ -57,8 +57,8 @@ Market and sector columns are filled only when enough stocks were scanned in the
    # SESSIONS = full collection days per the run record; EXCLUDE = one --exclude-day per logged outage day
    FROM=2026-12-01 TO=2026-12-29 DAYS=40 SESSIONS=20
    EXCLUDE=()   # e.g. EXCLUDE=(--exclude-day 2026-12-08)
-   curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
-     "https://<host>/api/analytics/price-paths.csv?days=$DAYS"
+   # on the app host; add -u <admin user> (curl prompts for the password) when login is enabled
+   curl --fail -o price-paths.csv "http://127.0.0.1:5050/api/analytics/price-paths.csv?days=$DAYS"
    mkdir -p docs/results
    python3 scripts/analyze_price_paths.py --from "$FROM" --to "$TO" --sessions "$SESSIONS" "${EXCLUDE[@]}" price-paths.csv \
      > "docs/results/$TO.md"
@@ -96,19 +96,22 @@ Recommended alerts are sustained readiness failure, any repeated batch/item fail
 
 Create a compressed logical backup before upgrades:
 
+The database name and user are read inside the container, so this works on a host where they exist only in `.env`. The second command fails if the dump is empty or unreadable; check it before copying the file anywhere.
+
 ```bash
-docker compose exec --no-TTY postgres \
-  pg_dump --format=custom --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-  > "marketguard-$(date +%Y%m%d-%H%M%S).dump"
+dump="marketguard-$(date +%Y%m%d-%H%M%S).dump"
+docker compose exec --no-TTY postgres sh -c \
+  'exec pg_dump --format=custom --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' > "$dump"
+docker compose exec --no-TTY postgres pg_restore --list < "$dump" > /dev/null && echo "backup ok: $dump"
 ```
 
 Store the dump encrypted outside the Docker host. Test restores regularly on an isolated database:
 
 ```bash
-docker compose exec --no-TTY postgres createdb --username "$POSTGRES_USER" marketguard_restore
-docker compose exec --no-TTY postgres \
-  pg_restore --exit-on-error --clean --if-exists \
-  --username "$POSTGRES_USER" --dbname marketguard_restore < marketguard.dump
+docker compose exec --no-TTY postgres sh -c 'exec createdb --username "$POSTGRES_USER" marketguard_restore'
+docker compose exec --no-TTY postgres sh -c \
+  'exec pg_restore --exit-on-error --clean --if-exists --username "$POSTGRES_USER" --dbname marketguard_restore' \
+  < marketguard.dump
 ```
 
 Never test a restore against the live database.

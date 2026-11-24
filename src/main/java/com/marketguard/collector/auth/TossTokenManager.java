@@ -46,8 +46,7 @@ public class TossTokenManager {
             if (isValid()) {                 // 다른 스레드가 이미 갱신했는지 재확인
                 return cachedToken;
             }
-            Instant now = clock.instant();
-            if (now.isBefore(nextAttemptAt)) {
+            if (clock.instant().isBefore(nextAttemptAt)) {
                 throw new TossTokenUnavailableException(nextAttemptAt);
             }
             try {
@@ -55,7 +54,8 @@ public class TossTokenManager {
             } catch (RuntimeException exception) {
                 consecutiveFailures++;
                 Duration wait = backoff(consecutiveFailures, exception);
-                nextAttemptAt = now.plus(wait);
+                // 발급 호출 안의 재시도 대기가 길 수 있으므로, 대기 시간은 실패가 돌아온 시각부터 센다.
+                nextAttemptAt = clock.instant().plus(wait);
                 log.warn("토스 토큰 발급 실패({}회 연속, {}). {}초 동안 다시 요청하지 않습니다.",
                         consecutiveFailures, describe(exception), wait.toSeconds());
                 throw exception;
@@ -70,9 +70,9 @@ public class TossTokenManager {
     static Duration backoff(int consecutiveFailures, RuntimeException failure) {
         Duration exponential = FIRST_BACKOFF.multipliedBy(1L << Math.min(consecutiveFailures - 1, 20));
         Duration wait = exponential.compareTo(MAX_BACKOFF) > 0 ? MAX_BACKOFF : exponential;
-        if (failure instanceof TossApiException api && api.retryAfter() != null
-                && api.retryAfter().compareTo(wait) > 0) {
-            return api.retryAfter();
+        if (failure instanceof TossApiException api && api.requestedRetryAfter() != null
+                && api.requestedRetryAfter().compareTo(wait) > 0) {
+            return api.requestedRetryAfter();
         }
         return wait;
     }

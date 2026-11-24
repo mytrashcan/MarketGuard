@@ -2,12 +2,15 @@ package com.marketguard.collector.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.marketguard.collector.client.TossApiErrorHandler;
 import com.marketguard.collector.client.TossApiException;
+import com.marketguard.config.TossHttpProperties;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,7 +24,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 
 class TossTokenManagerTest {
 
@@ -149,6 +155,38 @@ class TossTokenManagerTest {
         clock.advance(Duration.ofSeconds(30));
         assertThatThrownBy(manager::getAccessToken).isInstanceOf(TossApiException.class);
         verify(client, times(4)).issue();
+    }
+
+    @Test
+    void countsTheCooldownFromWhenTheFailureReturns() {
+        TossTokenClient client = mock(TossTokenClient.class);
+        MovableClock clock = new MovableClock();
+        // 발급 호출 안의 재시도 대기로 실패가 60초 뒤에야 돌아온다
+        when(client.issue()).thenAnswer(ignored -> {
+            clock.advance(Duration.ofSeconds(60));
+            throw forbidden();
+        });
+        TossTokenManager manager = new TossTokenManager(client, clock);
+
+        assertThatThrownBy(manager::getAccessToken).isInstanceOf(TossApiException.class);
+        clock.advance(Duration.ofSeconds(1));
+        assertThatThrownBy(manager::getAccessToken).isInstanceOf(TossTokenUnavailableException.class);
+        verify(client, times(1)).issue();
+    }
+
+    @Test
+    void waitsAsLongAsTossAsksEvenWhenInCallRetriesAreCapped() throws Exception {
+        TossHttpProperties http = new TossHttpProperties(Duration.ofSeconds(1), Duration.ofSeconds(1), 3,
+                Duration.ofMillis(300), Duration.ofSeconds(5), 0.0, Duration.ofSeconds(30));
+        MockClientHttpResponse response = new MockClientHttpResponse(new byte[0], HttpStatus.TOO_MANY_REQUESTS);
+        response.getHeaders().set("Retry-After", "120");
+
+        TossApiException thrown = catchThrowableOfType(TossApiException.class,
+                () -> new TossApiErrorHandler(http).handle(mock(HttpRequest.class), response));
+
+        assertThat(thrown.retryAfter()).isEqualTo(Duration.ofSeconds(30));
+        assertThat(thrown.requestedRetryAfter()).isEqualTo(Duration.ofSeconds(120));
+        assertThat(TossTokenManager.backoff(1, thrown)).isEqualTo(Duration.ofSeconds(120));
     }
 
     @Test
