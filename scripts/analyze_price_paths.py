@@ -219,11 +219,13 @@ def day_clustered_t_p(days: list[tuple[int, int]]) -> float:
     if groups < 2:
         return 1.0
     total = sum(n for _, n in days)
-    rate = sum(k for k, _ in days) / total
-    residual_squares = sum((k - rate * n) ** 2 for k, n in days)
-    standard_error = math.sqrt(groups / (groups - 1) * residual_squares) / total
-    if standard_error == 0:
+    total_followed = sum(k for k, _ in days)
+    rate = total_followed / total
+    # Residuals k - rate*n scaled by total, in exact integers, so float rounding never fakes variation.
+    residual_squares = sum((k * total - total_followed * n) ** 2 for k, n in days)
+    if residual_squares == 0:
         return 1.0
+    standard_error = math.sqrt(groups / (groups - 1) * residual_squares) / total ** 2
     return student_t_two_sided_p((rate - 0.5) / standard_error, groups - 1)
 
 

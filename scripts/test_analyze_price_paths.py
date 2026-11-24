@@ -76,6 +76,10 @@ class StatisticsTest(unittest.TestCase):
         self.assertLess(analysis.day_clustered_t_p([(6, 10), (7, 10), (5, 10), (6, 10)] * 5), 0.001)
         self.assertGreater(analysis.day_clustered_t_p(noisy), 0.05)
         self.assertEqual(analysis.day_clustered_t_p([(4, 10)]), 1.0)
+        # 63/90 every day: 0.7 * 90 is 62.99999999999999 in floating point, which must not count as variation
+        self.assertEqual(analysis.day_clustered_t_p([(63, 90)] * 20), 1.0)
+        self.assertEqual(analysis.verdict(63 * 20, 90 * 20, 20, 0.0001,
+                                          analysis.day_clustered_t_p([(63, 90)] * 20)), "no evidence")
 
     def test_bootstrap_interval_is_reproducible_and_brackets_the_rate(self):
         days = [(6, 10), (5, 10), (7, 10), (4, 10), (6, 10)] * 4
