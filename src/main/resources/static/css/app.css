@@ -2,6 +2,7 @@
  * MarketGuard console
  * Layout: fixed sidebar + full-height content; data views use list/detail split panes separated by hairlines.
  * Color: neutral zinc scale, monochrome primary, one iris tone for focus and selection.
+ *        Every text token meets WCAG AA (4.5:1) on bg, bg-subtle, bg-muted and iris-soft in both themes.
  *        Red/blue are reserved for price direction (Korean convention); severity uses dot + label.
  */
 :root {
@@ -13,16 +14,16 @@
     --border-strong: #d4d4d8;
     --fg: #18181b;
     --fg-muted: #52525b;
-    --fg-subtle: #8b8b94;
+    --fg-subtle: #6c6c75;
     --primary: #18181b;
     --primary-fg: #ffffff;
     --iris: #5b5bd6;
     --iris-soft: #eeeefc;
-    --up: #e5484d;
+    --up: #d41e24;
     --down: #3e63dd;
-    --red: #dc3e42;
-    --amber: #d18c00;
-    --green: #2b9a66;
+    --red: #d0262a;
+    --amber: #946300;
+    --green: #227a51;
     --chart-up-volume: rgba(229, 72, 77, .28);
     --chart-down-volume: rgba(62, 99, 221, .28);
     --overlay: rgba(9, 9, 11, .4);
@@ -54,7 +55,7 @@
         --border-strong: #303036;
         --fg: #ededef;
         --fg-muted: #a1a1aa;
-        --fg-subtle: #6e6e78;
+        --fg-subtle: #898993;
         --primary: #ededef;
         --primary-fg: #0c0c0e;
         --iris: #9b9ef0;
@@ -81,7 +82,7 @@
     --border-strong: #303036;
     --fg: #ededef;
     --fg-muted: #a1a1aa;
-    --fg-subtle: #6e6e78;
+    --fg-subtle: #898993;
     --primary: #ededef;
     --primary-fg: #0c0c0e;
     --iris: #9b9ef0;
