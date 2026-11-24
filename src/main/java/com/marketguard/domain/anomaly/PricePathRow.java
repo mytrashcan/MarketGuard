@@ -6,7 +6,7 @@ import com.marketguard.detection.model.Severity;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/** 내보내기용 가격 경로 한 점과 그 신호의 탐지 근거. */
+/** 내보내기용 가격 경로 한 점과 그 신호의 탐지 근거. 가격 점이 없는 신호면 시점 이후 값이 모두 비어 있다. */
 public record PricePathRow(
         Long anomalyId,
         Instant detectedAt,

@@ -16,7 +16,8 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 
 /**
- * 신호 가격 경로를 CSV로 내보낸다. 한 줄이 (신호, 신호 후 시점) 하나다.
+ * 신호 가격 경로를 CSV로 내보낸다. 한 줄이 (신호, 신호 후 시점) 하나이고, 가격 점이 없는 종목 신호는
+ * 시점과 가격이 빈 한 줄로 나온다.
  * 판정 없이 원값만 내보내므로, 측정 시점·임계값·기준을 바꿔 가며 밖에서 다시 분석할 수 있다.
  */
 @Service
@@ -68,7 +69,7 @@ public class PricePathExport {
                 PricePathRow last = batch.get(batch.size() - 1);
                 afterAt = last.detectedAt();
                 afterId = last.anomalyId();
-                afterOffset = last.offsetMinutes();
+                afterOffset = last.offsetMinutes() == null ? 0 : last.offsetMinutes();
             }
         } while (batch.size() == batchSize);
         out.flush();
@@ -85,7 +86,7 @@ public class PricePathExport {
                 number(row.observedValue()),
                 number(row.thresholdValue()),
                 number(row.deviationRatio()),
-                String.valueOf(row.offsetMinutes()),
+                row.offsetMinutes() == null ? "" : String.valueOf(row.offsetMinutes()),
                 number(row.basePrice()),
                 number(row.price()),
                 number(changePercent(row.basePrice(), row.price())),

@@ -108,6 +108,25 @@ class SignalPricePointRepositoryTest {
                 tuple(sameTime.getId(), 15), tuple(later.getId(), 5), tuple(later.getId(), 15));
     }
 
+    @Test
+    void exportsStockSignalsWithoutPointsAsOneEmptyRowAndSkipsMarketSignals() {
+        AnomalyRecord unrecorded = anomalies.save(signal("005930", AT));
+        AnomalyRecord recorded = anomalies.save(signal("000660", AT));
+        anomalies.save(signal("KOSPI", AT));
+        points.save(point(recorded.getId(), 5));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PricePathRow> rows = points.findPathRowsAfter(AT, AT.plusSeconds(60), AT.minusNanos(1), 0, 0, Limit.of(10));
+
+        assertThat(rows).extracting(PricePathRow::anomalyId, PricePathRow::offsetMinutes)
+                .containsExactly(tuple(unrecorded.getId(), null), tuple(recorded.getId(), 5));
+        assertThat(rows.get(0).price()).isNull();
+        // 빈 줄의 키 시점은 0이므로, 그 줄 뒤에서 이어 읽어도 같은 신호의 실제 점은 빠지지 않는다
+        assertThat(points.findPathRowsAfter(AT, AT.plusSeconds(60), AT, unrecorded.getId(), 0, Limit.of(10)))
+                .extracting(PricePathRow::anomalyId).containsExactly(recorded.getId());
+    }
+
     private static SignalPricePoint point(Long anomalyId, int offset) {
         return new SignalPricePoint(anomalyId, offset, new BigDecimal("100"), new BigDecimal("101"),
                 new BigDecimal("0.5"), null, AT.plusSeconds(offset * 60L));

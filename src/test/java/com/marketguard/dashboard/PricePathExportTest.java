@@ -55,6 +55,15 @@ class PricePathExportTest {
     }
 
     @Test
+    void writesASignalWithoutPointsAsOneLineWithEmptyPointColumns() throws IOException {
+        when(repository.findPathRowsAfter(any(), any(), any(), anyLong(), anyInt(), any()))
+                .thenReturn(List.of(row(null, null, null)));
+
+        assertThat(export(1, 10).lines().skip(1).toList())
+                .containsExactly("7,2026-07-31T00:30:00Z,005930,PRICE_SPIKE,WARNING,UP,4,3,1.333,,,,,,");
+    }
+
+    @Test
     void readsInBatchesContinuingAfterTheLastRowsKey() throws IOException {
         Instant from = Instant.parse("2026-07-29T15:00:00Z"); // 2026-07-30 00:00 KST
         when(repository.findPathRowsAfter(from, NOW, from.minusNanos(1), 0, 0, Limit.of(2)))
@@ -84,9 +93,9 @@ class PricePathExportTest {
         assertThat(PricePathExport.text("a,b\"c")).isEqualTo("\"a,b\"\"c\"");
     }
 
-    private static PricePathRow row(int offset, BigDecimal price, BigDecimal market) {
+    private static PricePathRow row(Integer offset, BigDecimal price, BigDecimal market) {
         return new PricePathRow(7L, SIGNAL_AT, "005930", RuleType.PRICE_SPIKE,
                 Severity.WARNING, Direction.UP, new BigDecimal("4"), new BigDecimal("3"), new BigDecimal("1.333"),
-                offset, new BigDecimal("70000.0000"), price, market, null);
+                offset, offset == null ? null : new BigDecimal("70000.0000"), price, market, null);
     }
 }

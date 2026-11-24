@@ -34,7 +34,7 @@ Loopback mode intentionally leaves read endpoints, including `/api/audit`, anony
 
 ## Signal price paths and full-universe runs
 
-Every stock signal gets a permanent price path in `signal_price_point`: for each `outcome.path-offsets` point (default 5, 15, 30 and 60 minutes) the base price at the signal, the price at that point, and the scanned-universe and same-sector median moves over the same window. Price snapshots are deleted after `maintenance.snapshot-retention` (90 minutes), so this table is the only data that lets you re-check signals later with other horizons or thresholds. Rows are raw values, not verdicts. A row with an empty `price` means no snapshot was found for that point. Signals whose snapshots were already deleted (for example during downtime) get no row; nothing is backfilled or estimated. The app refuses to start if the retention is shorter than the latest point plus two match windows and one measure interval.
+Every stock signal gets a permanent price path in `signal_price_point`: for each `outcome.path-offsets` point (default 5, 15, 30 and 60 minutes) the base price at the signal, the price at that point, and the scanned-universe and same-sector median moves over the same window. Price snapshots are deleted after `maintenance.snapshot-retention` (90 minutes), so this table is the only data that lets you re-check signals later with other horizons or thresholds. Rows are raw values, not verdicts. A row with an empty `price` means no snapshot was found for that point; the CSV export also lists stock signals that have no point at all, as one line with empty point columns. Signals whose snapshots were already deleted (for example during downtime) get no row; nothing is backfilled or estimated. The app refuses to start if the retention is shorter than the latest point plus two match windows and one measure interval.
 
 Download the data as CSV (one line per signal and point, last `days` KST days including today, `days=1..366`, default 31):
 
@@ -49,7 +49,19 @@ Market and sector columns are filled only when enough stocks were scanned in the
 2. Put them in `./data` (or `MARKETGUARD_DATA_DIR`) as `symbols.csv` and `sectors.csv`. Compose mounts the folder read-only at `/data`; `data/*` is git-ignored.
 3. Set `SCAN_SYMBOLS_FILE=/data/symbols.csv`, `OUTCOME_SECTORS_FILE=/data/sectors.csv` and `COLLECTOR_ENABLED=true` with Toss credentials, then restart.
 4. Check `marketguard_collector_scan_duration_seconds`. A full scan sends about one price request per 200 symbols per cycle; if a scan takes longer than `collector.poll-interval-ms` (30 s), raise the interval rather than the rate limits.
-5. Run through at least two to four weeks of regular sessions before reading the per-rule numbers. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
+5. Run for at least 20 regular sessions (about four weeks) before reading the per-rule numbers; the analysis script refuses confirmatory verdicts for shorter runs. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
+6. Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, wait until the recorder has written every point: the longest `outcome.path-offsets` value plus the match window and one measure interval after the close (16:35 KST with the defaults), or simply the next day. Then download the CSV for the whole run and evaluate it only as the plan specifies:
+
+   ```bash
+   # registered first and last session dates (KST); DAYS = calendar days from FROM to today (KST), inclusive
+   # SESSIONS = regular sessions actually collected per the run record, including days without signals
+   FROM=2026-12-01 TO=2026-12-29 DAYS=40 SESSIONS=20
+   curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
+     "https://<host>/api/analytics/price-paths.csv?days=$DAYS"
+   mkdir -p docs/results
+   python3 scripts/analyze_price_paths.py --from "$FROM" --to "$TO" --sessions "$SESSIONS" price-paths.csv \
+     > "docs/results/$TO.md"
+   ```
 
 With roughly 2,500 symbols scanned every 30 seconds, the 90-minute snapshot window holds about 450k rows; the price path adds four rows per stock signal and is never pruned automatically. Back it up with the database (see below).
 
