@@ -199,4 +199,20 @@ class TossTokenManagerTest {
         TossApiException limited = new TossApiException(HttpStatusCode.valueOf(429), Duration.ofMinutes(3), null);
         assertThat(TossTokenManager.backoff(1, limited)).isEqualTo(Duration.ofMinutes(3));
     }
+
+    @Test
+    void anAbsurdRetryAfterIsCappedSoTheCooldownIsStillRecorded() {
+        TossTokenClient client = mock(TossTokenClient.class);
+        Duration huge = Duration.ofSeconds(Long.MAX_VALUE);
+        when(client.issue()).thenThrow(new TossApiException(HttpStatusCode.valueOf(429), null, huge, null));
+        MovableClock clock = new MovableClock();
+        TossTokenManager manager = new TossTokenManager(client, clock);
+
+        assertThat(TossTokenManager.backoff(1, new TossApiException(HttpStatusCode.valueOf(429), null, huge, null)))
+                .isEqualTo(Duration.ofHours(24));
+        // 원래의 토스 오류가 그대로 전달되고, 다음 호출은 토스에 보내지 않는다
+        assertThatThrownBy(manager::getAccessToken).isInstanceOf(TossApiException.class);
+        assertThatThrownBy(manager::getAccessToken).isInstanceOf(TossTokenUnavailableException.class);
+        verify(client, times(1)).issue();
+    }
 }

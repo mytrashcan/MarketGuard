@@ -23,6 +23,8 @@ public class TossTokenManager {
     private static final Duration SAFETY_MARGIN = Duration.ofSeconds(30);
     static final Duration FIRST_BACKOFF = Duration.ofSeconds(30);
     static final Duration MAX_BACKOFF = Duration.ofMinutes(10);
+    /** Toss가 요청한 대기의 상한. 터무니없이 큰 Retry-After가 시각 계산을 넘치게 하거나 수집을 며칠씩 멈추지 않도록. */
+    static final Duration MAX_REQUESTED_WAIT = Duration.ofHours(24);
 
     private final TossTokenClient tokenClient;
     private final Clock clock;
@@ -66,13 +68,14 @@ public class TossTokenManager {
         }
     }
 
-    /** 30초에서 시작해 실패할 때마다 두 배, 최대 10분. 토스가 Retry-After로 더 길게 요구하면 그 값을 따른다. */
+    /** 30초에서 시작해 실패할 때마다 두 배, 최대 10분. 토스가 Retry-After로 더 길게 요구하면 그 값(최대 24시간)을 따른다. */
     static Duration backoff(int consecutiveFailures, RuntimeException failure) {
         Duration exponential = FIRST_BACKOFF.multipliedBy(1L << Math.min(consecutiveFailures - 1, 20));
         Duration wait = exponential.compareTo(MAX_BACKOFF) > 0 ? MAX_BACKOFF : exponential;
         if (failure instanceof TossApiException api && api.requestedRetryAfter() != null
                 && api.requestedRetryAfter().compareTo(wait) > 0) {
-            return api.requestedRetryAfter();
+            Duration requested = api.requestedRetryAfter();
+            return requested.compareTo(MAX_REQUESTED_WAIT) > 0 ? MAX_REQUESTED_WAIT : requested;
         }
         return wait;
     }
