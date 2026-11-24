@@ -63,6 +63,20 @@ class StatisticsTest(unittest.TestCase):
         # Three days that each lean the same way: 2 of 8 sign assignments are as extreme
         self.assertAlmostEqual(analysis.day_sign_flip_p([(5, 5), (3, 4), (2, 3)]), 0.25)
 
+    def test_student_t_tail_matches_tables(self):
+        self.assertAlmostEqual(analysis.student_t_two_sided_p(2.086, 20), 0.05, places=3)
+        self.assertAlmostEqual(analysis.student_t_two_sided_p(2.228, 10), 0.05, places=3)
+        self.assertAlmostEqual(analysis.student_t_two_sided_p(0.0, 15), 1.0)
+
+    def test_clustered_t_tests_the_pooled_rate_without_assuming_symmetric_days(self):
+        # Same pooled rate (60%), but days that disagree widely give a much weaker result than steady days
+        steady = [(6, 10)] * 20
+        noisy = [(10, 10), (2, 10)] * 10
+        self.assertEqual(analysis.day_clustered_t_p(steady), 1.0)  # no day-to-day variation: untestable
+        self.assertLess(analysis.day_clustered_t_p([(6, 10), (7, 10), (5, 10), (6, 10)] * 5), 0.001)
+        self.assertGreater(analysis.day_clustered_t_p(noisy), 0.05)
+        self.assertEqual(analysis.day_clustered_t_p([(4, 10)]), 1.0)
+
     def test_bootstrap_interval_is_reproducible_and_brackets_the_rate(self):
         days = [(6, 10), (5, 10), (7, 10), (4, 10), (6, 10)] * 4
         low, high = analysis.day_bootstrap_interval(days)
@@ -86,6 +100,12 @@ class StatisticsTest(unittest.TestCase):
         self.assertEqual(analysis.verdict(549, 1000, 20, 0.001), "no evidence (significant, below practical threshold)")
         self.assertEqual(analysis.verdict(451, 1000, 20, 0.001), "no evidence (significant, below practical threshold)")
         self.assertEqual(analysis.verdict(600, 1000, 20, 0.2), "no evidence")
+        # both day-level tests must pass
+        self.assertEqual(analysis.verdict(600, 1000, 20, 0.001, 0.2), "no evidence")
+        self.assertEqual(analysis.verdict(600, 1000, 20, 0.001, 0.001), "continuation")
+        # a run shorter than the registered 20 sessions never gets a confirmatory verdict
+        self.assertEqual(analysis.verdict(600, 1000, 20, 0.001, 0.001, sessions=10),
+                         "insufficient (run shorter than 20 sessions)")
 
 
 class SelectionTest(unittest.TestCase):
