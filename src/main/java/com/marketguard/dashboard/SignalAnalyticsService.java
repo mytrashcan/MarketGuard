@@ -78,7 +78,8 @@ public class SignalAnalyticsService {
                     OutcomeStatistics statistics = statistics(entry.getValue(), horizon);
                     return new SignalAnalyticsView.Rule(entry.getKey(), statistics.signals(), statistics.measured(),
                             statistics.followed(), statistics.medianAbsChangePercent(),
-                            statistics.followedAfterMarket(), bands(entry.getValue(), horizon));
+                            statistics.followedAfterMarket(), statistics.followedAfterSector(),
+                            bands(entry.getValue(), horizon));
                 })
                 .sorted(Comparator.comparingLong(SignalAnalyticsView.Rule::signals).reversed()
                         .thenComparing(SignalAnalyticsView.Rule::ruleType))

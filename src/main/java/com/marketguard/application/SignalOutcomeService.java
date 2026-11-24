@@ -1,5 +1,6 @@
 package com.marketguard.application;
 
+import com.marketguard.application.port.SectorLookup;
 import com.marketguard.config.MaintenanceProperties;
 import com.marketguard.config.OutcomeProperties;
 import com.marketguard.detection.evaluation.MarketBenchmark;
@@ -41,11 +42,14 @@ public class SignalOutcomeService {
     private final Clock clock;
     private final SignalOutcomeCalculator calculator = new SignalOutcomeCalculator();
     private final MarketBenchmark benchmark;
+    private final MarketBenchmark sectorBenchmark;
+    private final SectorLookup sectors;
 
     public SignalOutcomeService(AnomalyRepository anomalyRepository,
                                 PriceSnapshotRepository snapshotRepository,
                                 OutcomeProperties properties,
                                 MaintenanceProperties maintenance,
+                                SectorLookup sectors,
                                 Clock clock) {
         if (maintenance.snapshotRetention().compareTo(properties.requiredSnapshotRetention()) <= 0) {
             throw new IllegalStateException("maintenance.snapshot-retention must be longer than "
@@ -56,6 +60,8 @@ public class SignalOutcomeService {
         this.properties = properties;
         this.clock = clock;
         this.benchmark = new MarketBenchmark(properties.benchmarkMinimumSamples());
+        this.sectorBenchmark = new MarketBenchmark(properties.sectorMinimumSamples());
+        this.sectors = sectors;
     }
 
     /** 측정 시점과 확인 구간이 모두 지난 신호를 측정한다. 처리한 건수를 돌려준다. */
@@ -93,10 +99,27 @@ public class SignalOutcomeService {
             return calculator.measure(record.getDirection(), basePrice, outcomePrice);
         }
         MinuteRows minuteRows = rows.computeIfAbsent(signalAt.truncatedTo(ChronoUnit.MINUTES), this::minuteRows);
-        BigDecimal market = benchmark.medianChangePercent(
-                latestPerStock(within(minuteRows.base(), signalAt.minus(properties.matchWindow()), signalAt)),
-                earliestPerStock(within(minuteRows.outcome(), target, target.plus(properties.matchWindow()))));
-        return calculator.measure(record.getDirection(), basePrice, outcomePrice, market);
+        Map<String, BigDecimal> marketBase =
+                latestPerStock(within(minuteRows.base(), signalAt.minus(properties.matchWindow()), signalAt));
+        Map<String, BigDecimal> marketOutcome =
+                earliestPerStock(within(minuteRows.outcome(), target, target.plus(properties.matchWindow())));
+        BigDecimal market = benchmark.medianChangePercent(marketBase, marketOutcome);
+        BigDecimal sector = sectors.sectorOf(record.getStockCode())
+                .map(name -> sectorChange(marketBase, marketOutcome, name, record.getStockCode()))
+                .orElse(null);
+        return calculator.measure(record.getDirection(), basePrice, outcomePrice, market, sector);
+    }
+
+    /** 신호 종목을 뺀 같은 업종 종목의 변동률 중앙값. 시장 기준과 같은 구간의 가격을 쓴다. */
+    private BigDecimal sectorChange(Map<String, BigDecimal> base, Map<String, BigDecimal> outcome,
+                                    String sector, String excludedCode) {
+        Map<String, BigDecimal> sameSector = new HashMap<>();
+        base.forEach((code, price) -> {
+            if (!code.equals(excludedCode) && sectors.sectorOf(code).filter(sector::equals).isPresent()) {
+                sameSector.put(code, price);
+            }
+        });
+        return sectorBenchmark.medianChangePercent(sameSector, outcome);
     }
 
     /**

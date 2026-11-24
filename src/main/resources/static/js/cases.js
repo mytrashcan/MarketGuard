@@ -252,9 +252,11 @@ function outcomeText(signal) {
             const change = Number(signal.outcomeChangePercent);
             const direction = signal.outcomeFollowedDirection == null ? ""
                 : signal.outcomeFollowedDirection ? ", 신호 방향 유지" : ", 반대 방향";
-            const market = signal.outcomeMarketChangePercent == null ? ""
-                : ` (시장 ${signedPercent(signal.outcomeMarketChangePercent)}, 초과 ${signedPercent(signal.outcomeExcessChangePercent)})`;
-            return `이후 가격 ${signedPercent(change)}${direction}${market}`;
+            const benchmarks = [
+                signal.outcomeMarketChangePercent == null ? null : `시장 ${signedPercent(signal.outcomeMarketChangePercent)}`,
+                signal.outcomeSectorChangePercent == null ? null : `업종 ${signedPercent(signal.outcomeSectorChangePercent)}`
+            ].filter(Boolean);
+            return `이후 가격 ${signedPercent(change)}${direction}${benchmarks.length ? ` (${benchmarks.join(", ")})` : ""}`;
         }
         case "NO_PRICE_DATA": return "이후 가격 측정 불가";
         case "NOT_APPLICABLE": return "이후 가격 해당 없음";

@@ -131,6 +131,9 @@ outcome:
   match-window: 3m              # 신호·측정 시점에서 이 시간 안의 스냅샷만 가격으로 인정
   measure-interval: 1m
   benchmark-minimum-samples: 30 # 시장 기준(스캔 종목 변동률 중앙값)에 필요한 최소 종목 수
+  # 선택: "종목코드,업종" CSV(KRX 업종분류 CSV 그대로 가능). 있으면 같은 업종 다른 종목의 변동도 빼고 판단한다.
+  sectors-file: ${OUTCOME_SECTORS_FILE:}
+  sector-minimum-samples: 5
 
 # 탐지 룰 임계치
 detection:

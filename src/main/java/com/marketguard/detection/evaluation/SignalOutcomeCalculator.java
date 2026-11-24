@@ -8,19 +8,22 @@ import java.math.BigDecimal;
 public final class SignalOutcomeCalculator {
 
     public SignalOutcome measure(Direction direction, BigDecimal basePrice, BigDecimal outcomePrice) {
-        return measure(direction, basePrice, outcomePrice, null);
+        return measure(direction, basePrice, outcomePrice, null, null);
     }
 
+    /** 시장·업종 기준 변동은 없으면 null로 넘긴다. 없는 기준에 대한 판단은 null로 남는다. */
     public SignalOutcome measure(Direction direction, BigDecimal basePrice, BigDecimal outcomePrice,
-                                 BigDecimal marketChangePercent) {
+                                 BigDecimal marketChangePercent, BigDecimal sectorChangePercent) {
         if (basePrice == null || outcomePrice == null || basePrice.signum() <= 0 || outcomePrice.signum() <= 0) {
             return SignalOutcome.noPriceData();
         }
         BigDecimal change = DecimalMath.percentageChange(outcomePrice, basePrice);
         BigDecimal excess = marketChangePercent == null ? null : change.subtract(marketChangePercent);
+        BigDecimal sectorExcess = sectorChangePercent == null ? null : change.subtract(sectorChangePercent);
         return new SignalOutcome(OutcomeStatus.MEASURED, basePrice, outcomePrice, change,
                 followed(direction, change), marketChangePercent, excess,
-                excess == null ? null : followed(direction, excess));
+                excess == null ? null : followed(direction, excess),
+                sectorChangePercent, sectorExcess == null ? null : followed(direction, sectorExcess));
     }
 
     /** 신호가 예상한 가격 방향. 매수 우위·순매수는 상승, 매도 우위·순매도는 하락으로 본다. 없으면 0. */

@@ -21,7 +21,8 @@ public interface AnomalyRepository extends JpaRepository<AnomalyRecord, Long> {
                 a.ruleType, a.severity, a.stockCode, a.detectedAt, a.outcomeStatus, a.outcomeBasePrice,
                 a.outcomePrice, a.outcomeChangePercent, a.outcomeFollowedDirection,
                 a.outcomeMarketChangePercent, a.outcomeExcessChangePercent, a.outcomeFollowedAfterMarket,
-                a.outcomeHorizonMinutes, a.observedValue, a.thresholdValue, a.deviationRatio)
+                a.outcomeHorizonMinutes, a.observedValue, a.thresholdValue, a.deviationRatio,
+                a.outcomeSectorChangePercent, a.outcomeFollowedAfterSector)
             FROM AnomalyRecord a
             WHERE a.detectedAt >= :from AND a.detectedAt < :to
             """)

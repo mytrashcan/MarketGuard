@@ -120,7 +120,7 @@ class PriceSnapshotRepositoryIntegrationTest {
         assertThat(repository.findByStockCodeOrderByCapturedAtDesc("005930", Limit.of(10))).hasSize(1);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from flyway_schema_history where success = true", Integer.class))
-                .isEqualTo(6);
+                .isEqualTo(migrationFileCount());
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from information_schema.tables where table_name = 'anomaly_cooldown'",
                 Integer.class)).isEqualTo(1);
@@ -285,5 +285,14 @@ class PriceSnapshotRepositoryIntegrationTest {
 
     private static Anomaly anomaly(String stockCode, RuleType ruleType, Instant detectedAt) {
         return new Anomaly(stockCode, ruleType, Severity.WARNING, "test anomaly", detectedAt);
+    }
+
+    /** 적용돼야 할 마이그레이션 수. 새 마이그레이션을 추가할 때마다 숫자를 고치지 않도록 파일을 센다. */
+    private static int migrationFileCount() {
+        try (var files = java.nio.file.Files.list(java.nio.file.Path.of("src/main/resources/db/migration"))) {
+            return (int) files.filter(path -> path.getFileName().toString().matches("V\\d+__.+\\.sql")).count();
+        } catch (java.io.IOException exception) {
+            throw new java.io.UncheckedIOException(exception);
+        }
     }
 }

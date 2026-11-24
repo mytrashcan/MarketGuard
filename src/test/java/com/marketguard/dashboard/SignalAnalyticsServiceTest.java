@@ -25,7 +25,7 @@ class SignalAnalyticsServiceTest {
     // 2026-07-31 10:00 KST
     private static final Instant NOW = Instant.parse("2026-07-31T01:00:00Z");
     private static final OutcomeProperties OUTCOME =
-            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3);
+            new OutcomeProperties(Duration.ofMinutes(30), Duration.ofMinutes(3), Duration.ofMinutes(1), 3, "", 2);
 
     private final AnomalyRepository repository = mock(AnomalyRepository.class);
     private final SignalAnalyticsService service =
@@ -92,7 +92,7 @@ class SignalAnalyticsServiceTest {
         SignalStatRow oldHorizon = new SignalStatRow(RuleType.PRICE_SPIKE, Severity.WARNING, "005930",
                 Instant.parse("2026-07-31T00:10:00Z"), OutcomeStatus.MEASURED, new BigDecimal("100"),
                 new BigDecimal("98"), new BigDecimal("-2"), false, null, null, null, 60,
-                null, new BigDecimal("3"), new BigDecimal("2.5"));
+                null, new BigDecimal("3"), new BigDecimal("2.5"), null, null);
         when(repository.findStatRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(current, oldHorizon));
 
@@ -122,6 +122,6 @@ class SignalAnalyticsServiceTest {
                 : (excess.signum() > 0) == (followed == change.signum() > 0);
         return new SignalStatRow(rule, severity, code, Instant.parse(at), status, base, outcome, change, followed,
                 market, excess, followedAfterMarket, status == null ? null : 30,
-                null, new BigDecimal("3"), new BigDecimal("1.2"));
+                null, new BigDecimal("3"), new BigDecimal("1.2"), null, null);
     }
 }
