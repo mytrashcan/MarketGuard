@@ -13,6 +13,7 @@ import com.marketguard.collector.MarketRankingQuote;
 import com.marketguard.collector.MarketRankingService;
 import com.marketguard.collector.MarketRankingType;
 import com.marketguard.collector.StockReferenceService;
+import com.marketguard.collector.auth.TossTokenUnavailableException;
 import com.marketguard.collector.client.TossApiException;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.MarketGuardSecurityProperties;
@@ -160,6 +161,16 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.code").value("MARKET_DATA_UNAVAILABLE"))
                 .andExpect(jsonPath("$.message").value("Market data is temporarily unavailable"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("request-1"))));
+    }
+
+    @Test
+    void mapsATokenCooldownToServiceUnavailableRatherThanAnInternalError() throws Exception {
+        when(marketDataClient.fetchCandles("005930", "1m", 60))
+                .thenThrow(new TossTokenUnavailableException(Instant.parse("2026-07-15T01:00:30Z")));
+
+        mockMvc.perform(get("/api/stocks/005930/candles"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("MARKET_DATA_UNAVAILABLE"));
     }
 
     @Test

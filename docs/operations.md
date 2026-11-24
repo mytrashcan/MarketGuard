@@ -39,8 +39,8 @@ Every stock signal gets a permanent price path in `signal_price_point`: for each
 Download the data as CSV (one line per signal and point, last `days` KST days including today, `days=1..366`, default 31):
 
 ```bash
-curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
-  "https://<host>/api/analytics/price-paths.csv?days=31"
+# on the app host; add -u <admin user> (curl prompts for the password) when login is enabled
+curl --fail -o price-paths.csv "http://127.0.0.1:5050/api/analytics/price-paths.csv?days=31"
 ```
 
 Market and sector columns are filled only when enough stocks were scanned in the same window (`outcome.benchmark-minimum-samples`, 30; `outcome.sector-minimum-samples`, 5). The bundled 35-symbol seed rarely meets either, so an evaluation run should scan the full market:
@@ -50,15 +50,15 @@ Market and sector columns are filled only when enough stocks were scanned in the
 3. Set `SCAN_SYMBOLS_FILE=/data/symbols.csv`, `OUTCOME_SECTORS_FILE=/data/sectors.csv` and `COLLECTOR_ENABLED=true` with Toss credentials, then restart.
 4. Check `marketguard_collector_scan_duration_seconds`. A full scan sends about one price request per 200 symbols per cycle; if a scan takes longer than `collector.poll-interval-ms` (30 s), raise the interval rather than the rate limits.
 5. Run for at least 20 regular sessions (about four weeks) before reading the per-rule numbers; the analysis script refuses confirmatory verdicts for shorter runs. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
-6. Follow [run-checklist.md](run-checklist.md) for the day-by-day procedure (`scripts/run_preflight.py` before the start, `scripts/run_status.sh` after each session). Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, wait until the recorder has written every point: the longest `outcome.path-offsets` value plus the match window and one measure interval after the close (16:35 KST with the defaults), or simply the next day. Then download the CSV for the whole run and evaluate it only as the plan specifies:
+6. Run it on a host with a fixed outbound IP that Toss accepts; [deploy-oci.md](deploy-oci.md) sets one up on Oracle Cloud. Follow [run-checklist.md](run-checklist.md) for the day-by-day procedure (`scripts/run_preflight.py` before the start, `scripts/run_status.sh` after each session). Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, wait until the recorder has written every point: the longest `outcome.path-offsets` value plus the match window and one measure interval after the close (16:35 KST with the defaults), or simply the next day. Then download the CSV for the whole run and evaluate it only as the plan specifies:
 
    ```bash
    # registered first and last session dates (KST); DAYS = calendar days from FROM to today (KST), inclusive
    # SESSIONS = full collection days per the run record; EXCLUDE = one --exclude-day per logged outage day
    FROM=2026-12-01 TO=2026-12-29 DAYS=40 SESSIONS=20
    EXCLUDE=()   # e.g. EXCLUDE=(--exclude-day 2026-12-08)
-   curl -u "$MARKETGUARD_ADMIN_USERNAME:$MARKETGUARD_ADMIN_PASSWORD" -o price-paths.csv \
-     "https://<host>/api/analytics/price-paths.csv?days=$DAYS"
+   # on the app host; add -u <admin user> (curl prompts for the password) when login is enabled
+   curl --fail -o price-paths.csv "http://127.0.0.1:5050/api/analytics/price-paths.csv?days=$DAYS"
    mkdir -p docs/results
    python3 scripts/analyze_price_paths.py --from "$FROM" --to "$TO" --sessions "$SESSIONS" "${EXCLUDE[@]}" price-paths.csv \
      > "docs/results/$TO.md"
@@ -96,19 +96,22 @@ Recommended alerts are sustained readiness failure, any repeated batch/item fail
 
 Create a compressed logical backup before upgrades:
 
+The database name and user are read inside the container, so this works on a host where they exist only in `.env`. The second command fails if the dump is empty or unreadable; check it before copying the file anywhere.
+
 ```bash
-docker compose exec --no-TTY postgres \
-  pg_dump --format=custom --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-  > "marketguard-$(date +%Y%m%d-%H%M%S).dump"
+dump="marketguard-$(date +%Y%m%d-%H%M%S).dump"
+docker compose exec --no-TTY postgres sh -c \
+  'exec pg_dump --format=custom --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' > "$dump"
+docker compose exec --no-TTY postgres pg_restore --list < "$dump" > /dev/null && echo "backup ok: $dump"
 ```
 
 Store the dump encrypted outside the Docker host. Test restores regularly on an isolated database:
 
 ```bash
-docker compose exec --no-TTY postgres createdb --username "$POSTGRES_USER" marketguard_restore
-docker compose exec --no-TTY postgres \
-  pg_restore --exit-on-error --clean --if-exists \
-  --username "$POSTGRES_USER" --dbname marketguard_restore < marketguard.dump
+docker compose exec --no-TTY postgres sh -c 'exec createdb --username "$POSTGRES_USER" marketguard_restore'
+docker compose exec --no-TTY postgres sh -c \
+  'exec pg_restore --exit-on-error --clean --if-exists --username "$POSTGRES_USER" --dbname marketguard_restore' \
+  < marketguard.dump
 ```
 
 Never test a restore against the live database.
@@ -126,6 +129,7 @@ Migrations are forward-only. Application rollback is safe only when the older bi
 
 - Suspected credential leak: disable/revoke the credential, rotate it, restart the single app replica, and inspect audit/access logs.
 - Upstream outage/429: leave bounded retry/circuit behavior in place; do not shorten limits. The collector isolates failed batches and calendar failure stops scans.
+- Token issuance rejected (`marketguard_toss_http_duration_seconds_count{client="auth",outcome="403"}`, log line "토스 토큰 발급 실패(N회 연속, HTTP 403)"): almost always an outbound IP that is not registered with Toss, or a revoked key. After a failed issue every caller fails fast without contacting Toss for 30 seconds, doubling to 10 minutes, or as long as Toss's `Retry-After` asks up to 24 hours. The warning log states the actual wait in seconds; fix the registration and wait for the next attempt rather than restarting in a loop.
 - Database unavailable: readiness becomes unhealthy; restore connectivity before restarting repeatedly.
 - Alert flood: disable the collector, preserve DB evidence, inspect thresholds/timestamps, then re-enable. Durable cooldown survives restart.
 - Case backlog: inspect `marketguard_cases_by_status`, filter old `NEW`/`REVIEWING` cases, and review per-rule dismissed ratios before changing any threshold. The application never tunes thresholds automatically.

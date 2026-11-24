@@ -172,6 +172,7 @@ GitHub Actions와 Docker base image는 commit·digest로 고정했습니다.
 |---|---|
 | 신호 검증 분석 계획 (사전 등록) | [analysis-plan.md](docs/analysis-plan.md) |
 | 검증 실행 체크리스트 (20거래일) | [run-checklist.md](docs/run-checklist.md) |
+| OCI 서버에서 실행하기 | [deploy-oci.md](docs/deploy-oci.md) |
 | 운영·백업·지표·전 종목 운영 | [operations.md](docs/operations.md) |
 | 설계와 계층 규칙 | [architecture.md](docs/architecture.md) |
 | API 계약 | [api.md](docs/api.md) |
