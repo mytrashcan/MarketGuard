@@ -3,10 +3,11 @@ package com.marketguard.dashboard;
 import com.marketguard.domain.casework.SurveillanceCaseRepository;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.List;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,12 +42,16 @@ public class AnalyticsController {
         return signalAnalyticsService.summarize(days);
     }
 
-    /** 최근 days일(KST, 오늘 포함) 신호의 가격 경로 원자료. 한 줄이 (신호, 신호 후 시점) 하나다. */
-    @GetMapping(value = "/price-paths.csv", produces = "text/csv;charset=UTF-8")
-    public ResponseEntity<String> pricePaths(@RequestParam(defaultValue = "31") @Min(1) @Max(366) int days) {
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename("marketguard-price-paths.csv").build().toString())
-                .body(pricePathExport.csv(days));
+    /**
+     * 최근 days일(KST, 오늘 포함) 신호의 가격 경로 원자료. 한 줄이 (신호, 신호 후 시점) 하나다.
+     * 기간이 길면 행이 많으므로 문자열로 모으지 않고 응답에 바로 흘려 쓴다.
+     */
+    @GetMapping("/price-paths.csv")
+    public void pricePaths(@RequestParam(defaultValue = "31") @Min(1) @Max(366) int days,
+                           HttpServletResponse response) throws IOException {
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename("marketguard-price-paths.csv").build().toString());
+        pricePathExport.write(days, response.getWriter());
     }
 }

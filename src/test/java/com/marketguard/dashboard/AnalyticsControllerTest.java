@@ -1,13 +1,16 @@
 package com.marketguard.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.marketguard.domain.casework.SurveillanceCaseRepository;
+import java.io.Writer;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 class AnalyticsControllerTest {
 
@@ -16,13 +19,18 @@ class AnalyticsControllerTest {
             mock(SurveillanceCaseRepository.class), mock(SignalAnalyticsService.class), export);
 
     @Test
-    void servesPricePathsAsADownloadableCsvFile() {
-        when(export.csv(31)).thenReturn(PricePathExport.HEADER);
+    void streamsPricePathsAsADownloadableCsvFile() throws Exception {
+        doAnswer(call -> {
+            call.<Writer>getArgument(1).write(PricePathExport.HEADER);
+            return null;
+        }).when(export).write(eq(31), any());
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        ResponseEntity<String> response = controller.pricePaths(31);
+        controller.pricePaths(31, response);
 
-        assertThat(response.getBody()).isEqualTo(PricePathExport.HEADER);
-        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+        assertThat(response.getContentAsString()).isEqualTo(PricePathExport.HEADER);
+        assertThat(response.getContentType()).isEqualTo("text/csv;charset=UTF-8");
+        assertThat(response.getHeader(HttpHeaders.CONTENT_DISPOSITION))
                 .isEqualTo("attachment; filename=\"marketguard-price-paths.csv\"");
     }
 }

@@ -1,6 +1,7 @@
 package com.marketguard.domain.anomaly;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.marketguard.detection.model.RuleType;
 import com.marketguard.detection.model.Severity;
@@ -66,7 +67,7 @@ class SignalPricePointRepositoryTest {
     }
 
     @Test
-    void exportsEachPointWithItsSignal() {
+    void exportsEachPointWithItsSignalInKeyOrder() {
         AnomalyRecord signal = anomalies.save(signal("005930", AT));
         anomalies.save(signal("000660", AT.plusSeconds(3600)));
         points.save(point(signal.getId(), 15));
@@ -74,12 +75,37 @@ class SignalPricePointRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        List<PricePathRow> rows = points.findPathRows(AT, AT.plusSeconds(60));
+        List<PricePathRow> rows = points.findPathRowsAfter(AT, AT.plusSeconds(60), AT.minusNanos(1), 0, 0, Limit.of(10));
 
         assertThat(rows).extracting(PricePathRow::offsetMinutes).containsExactly(5, 15);
         assertThat(rows.get(0).stockCode()).isEqualTo("005930");
         assertThat(rows.get(0).ruleType()).isEqualTo(RuleType.PRICE_SPIKE);
         assertThat(rows.get(0).price()).isEqualByComparingTo("101");
+    }
+
+    @Test
+    void continuesAfterTheGivenKeyWithoutSkippingOrRepeatingRows() {
+        // 같은 시각의 두 신호와 그 뒤 신호: 키 (시각, 신호 id, 시점) 순서로 한 번씩만 나와야 한다
+        AnomalyRecord first = anomalies.save(signal("005930", AT));
+        AnomalyRecord sameTime = anomalies.save(signal("000660", AT));
+        AnomalyRecord later = anomalies.save(signal("035720", AT.plusSeconds(1)));
+        for (AnomalyRecord record : List.of(first, sameTime, later)) {
+            points.save(point(record.getId(), 5));
+            points.save(point(record.getId(), 15));
+        }
+        entityManager.flush();
+        entityManager.clear();
+        Instant to = AT.plusSeconds(60);
+
+        List<PricePathRow> page1 = points.findPathRowsAfter(AT, to, AT.minusNanos(1), 0, 0, Limit.of(3));
+        PricePathRow last = page1.get(2);
+        List<PricePathRow> page2 = points.findPathRowsAfter(AT, to, last.detectedAt(), last.anomalyId(),
+                last.offsetMinutes(), Limit.of(3));
+
+        assertThat(page1).extracting(PricePathRow::anomalyId, PricePathRow::offsetMinutes).containsExactly(
+                tuple(first.getId(), 5), tuple(first.getId(), 15), tuple(sameTime.getId(), 5));
+        assertThat(page2).extracting(PricePathRow::anomalyId, PricePathRow::offsetMinutes).containsExactly(
+                tuple(sameTime.getId(), 15), tuple(later.getId(), 5), tuple(later.getId(), 15));
     }
 
     private static SignalPricePoint point(Long anomalyId, int offset) {
