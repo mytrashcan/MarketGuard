@@ -16,7 +16,9 @@ import com.marketguard.collector.StockReferenceService;
 import com.marketguard.collector.client.TossApiException;
 import com.marketguard.collector.client.TossMarketDataClient;
 import com.marketguard.config.MarketGuardSecurityProperties;
+import com.marketguard.domain.anomaly.AnomalyCountRepository;
 import com.marketguard.domain.anomaly.AnomalyRepository;
+import com.marketguard.domain.anomaly.SignalCount;
 import com.marketguard.domain.anomaly.AnomalyRecord;
 import com.marketguard.domain.audit.AuditLogRepository;
 import com.marketguard.domain.marketdata.PriceSnapshotRepository;
@@ -66,10 +68,26 @@ class DashboardControllerTest {
     private StockReferenceService stockReferenceService;
 
     @MockitoBean
+    private AnomalyCountRepository anomalyCountRepository;
+
+    @MockitoBean
     private MarketGuardSecurityProperties securityProperties;
 
     @MockitoBean
     private Clock clock;
+
+    @Test
+    void countsAllSignalsSinceTheGivenTimeInsteadOfAPage() throws Exception {
+        Instant since = Instant.parse("2026-07-30T15:00:00Z");
+        when(anomalyCountRepository.countSince(since)).thenReturn(new SignalCount(512, 37));
+
+        mockMvc.perform(get("/api/anomalies/count").queryParam("since", "2026-07-30T15:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signals").value(512))
+                .andExpect(jsonPath("$.critical").value(37));
+        mockMvc.perform(get("/api/anomalies/count").queryParam("since", "yesterday"))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void returnsAnomalySpecificNotFoundCode() throws Exception {

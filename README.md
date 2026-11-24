@@ -145,6 +145,7 @@ reverse proxy/터널에 연결하면 안 됩니다. 토큰은 쓰기 무결성�
 | `GET /api/rankings?type=MARKET_TRADING_AMOUNT&limit=50` | 서버에 캐시된 토스 시장 랭킹, `limit=1..100` | 아니요 |
 | `GET /api/stocks/{code}/candles?interval=1m&count=60` | 1분/일 캔들, `count=1..200` | 아니요 |
 | `GET /api/anomalies?limit=50` | 최근 이상 기록, `limit=1..200` | 아니요 |
+| `GET /api/anomalies/count?since=...` | 주어진 시각 이후 신호 수와 심각 신호 수 | 아니요 |
 | `GET /api/anomalies/{id}` | 구조화된 단일 신호 근거 | 아니요 |
 | `GET /api/cases?...` | 사건 목록, pagination과 상태/규칙/심각도/종목/시간/점수 필터 | 아니요 |
 | `GET /api/cases/{id}` | 점수 구성·타임라인·메모·상태 이력 | 아니요 |

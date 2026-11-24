@@ -1,11 +1,19 @@
 // 개요 화면: 상태별 사건 수, 처리 대기 사건, 최근 신호, 거래대금 상위.
 import { api } from "./api.js";
-import { OPEN_STATUSES, chgHtml, escapeHtml, fmtCompact, fmtNumber, fmtTime, isToday, ruleLabel, severityDot, stockLabel } from "./format.js";
+import { OPEN_STATUSES, chgHtml, escapeHtml, fmtCompact, fmtNumber, fmtTime, ruleLabel, severityDot, stockLabel } from "./format.js";
 import { errorLine, loadingLine, stateLine } from "./ui.js";
 import { caseTableRow } from "./cases.js";
 
 const $ = id => document.getElementById(id);
+const FEED_SIZE = 10;
 let recentSignals = [];
+let todayCount = { since: null, signals: 0, critical: 0 };
+
+/** 오늘(KST) 0시의 ISO 시각. 서버가 이 시각 이후 신호를 전부 센다. */
+export function startOfTodayKst(now = Date.now()) {
+    const kstDate = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    return new Date(`${kstDate}T00:00:00+09:00`).toISOString();
+}
 
 export async function refreshOverview() {
     await Promise.allSettled([loadCounts(), loadQueue(), loadSignals(), loadMovers()]);
@@ -58,7 +66,10 @@ async function loadQueue() {
 
 async function loadSignals() {
     try {
-        recentSignals = (await api.anomalies(200)) || [];
+        const since = startOfTodayKst();
+        const [feed, count] = await Promise.all([api.anomalies(FEED_SIZE), api.signalCount(since)]);
+        recentSignals = feed || [];
+        todayCount = count;
         renderSignals();
     } catch (error) {
         $("signalFeed").innerHTML = `<li style="display:block;border:0">${errorLine("신호를 불러오지 못했습니다.", error)}</li>`;
@@ -66,24 +77,40 @@ async function loadSignals() {
 }
 
 function renderSignals(freshCount = 0) {
-    const today = recentSignals.filter(signal => isToday(signal.detectedAt));
-    const critical = today.filter(signal => signal.severity === "CRITICAL").length;
-    $("kpiToday").innerHTML = fmtNumber(today.length) + (critical ? `<small>심각 ${fmtNumber(critical)}</small>` : "");
+    const { signals, critical } = todayCount;
+    $("kpiToday").innerHTML = fmtNumber(signals) + (critical ? `<small>심각 ${fmtNumber(critical)}</small>` : "");
     const feed = $("signalFeed");
     if (recentSignals.length === 0) {
         feed.innerHTML = `<li style="display:block;border:0">${stateLine("아직 탐지된 신호가 없습니다.")}</li>`;
         return;
     }
-    feed.innerHTML = recentSignals.slice(0, 10).map((signal, index) =>
+    feed.innerHTML = recentSignals.slice(0, FEED_SIZE).map((signal, index) =>
         `<li${index < freshCount ? ` class="fresh"` : ""}><time>${escapeHtml(fmtTime(signal.detectedAt))}</time>` +
         `<div class="what"><div>${severityDot(signal.severity)} <span class="sm">${escapeHtml(ruleLabel(signal.ruleType))}</span> · ${stockLabel(signal.stockName, signal.stockCode)}</div>` +
         `<p>${escapeHtml(signal.summary || signal.message)}</p></div></li>`
     ).join("");
 }
 
+/**
+ * 실시간 알림 한 건을 피드 맨 앞에 붙이고, 오늘 신호면 개수도 올린다.
+ * 자정(KST)이 지났으면 어제 개수에 더하지 않고 오늘 개수를 다시 불러온다.
+ */
 export function pushSignal(notification) {
     recentSignals.unshift({ ...notification, summary: notification.message });
-    recentSignals = recentSignals.slice(0, 200);
+    recentSignals = recentSignals.slice(0, FEED_SIZE);
+    // 서버는 "…T15:00:00Z", 브라우저는 "…T15:00:00.000Z"로 쓰므로 문자열이 아니라 시각으로 비교한다.
+    if (Date.parse(todayCount.since) !== Date.parse(startOfTodayKst())) {
+        renderSignals(1);
+        loadSignals();
+        return;
+    }
+    if (Date.parse(notification.detectedAt) >= Date.parse(todayCount.since)) {
+        todayCount = {
+            ...todayCount,
+            signals: todayCount.signals + 1,
+            critical: todayCount.critical + (notification.severity === "CRITICAL" ? 1 : 0)
+        };
+    }
     renderSignals(1);
 }
 

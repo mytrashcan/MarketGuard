@@ -89,6 +89,7 @@ export const api = {
     stockContext: (code, before) => getJson(`/api/stocks/${encodeURIComponent(code)}/context?count=120` +
         (before ? `&before=${encodeURIComponent(before)}` : "")),
     anomalies: (limit = 50) => getJson(`/api/anomalies?limit=${limit}`),
+    signalCount: since => getJson(`/api/anomalies/count?since=${encodeURIComponent(since)}`),
     cases: params => getJson(`/api/cases?${new URLSearchParams(params)}`),
     caseDetail: id => getJson(`/api/cases/${Number(id)}`),
     ruleAnalytics: () => getJson("/api/analytics/rules"),
