@@ -50,6 +50,12 @@ Market and sector columns are filled only when enough stocks were scanned in the
 3. Set `SCAN_SYMBOLS_FILE=/data/symbols.csv`, `OUTCOME_SECTORS_FILE=/data/sectors.csv` and `COLLECTOR_ENABLED=true` with Toss credentials, then restart.
 4. Check `marketguard_collector_scan_duration_seconds`. A full scan sends about one price request per 200 symbols per cycle; if a scan takes longer than `collector.poll-interval-ms` (30 s), raise the interval rather than the rate limits.
 5. Run through at least two to four weeks of regular sessions before reading the per-rule numbers. Fewer days mostly measures a few market regimes, and signals from the same stock and day are not independent.
+6. Before starting, fill in the run record in [analysis-plan.md](analysis-plan.md) (dates, commit, detection settings) and keep the settings fixed. After the last session, download the CSV for the whole run and evaluate it only as the plan specifies:
+
+   ```bash
+   mkdir -p docs/results
+   python3 scripts/analyze_price_paths.py price-paths.csv > docs/results/$(date +%F).md
+   ```
 
 With roughly 2,500 symbols scanned every 30 seconds, the 90-minute snapshot window holds about 450k rows; the price path adds four rows per stock signal and is never pruned automatically. Back it up with the database (see below).
 

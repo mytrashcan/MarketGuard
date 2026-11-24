@@ -53,6 +53,12 @@ jobs:
           node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (!(major > 22 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19))) { console.error("Node 20.19+ or 22.12+ is required, found " + process.versions.node); process.exit(1); }'
           node --test src/test/js/*.test.mjs
 
+      - name: Test analysis script
+        # docs/analysis-plan.md의 분석을 그대로 구현한 스크립트. 표준 라이브러리만 쓴다.
+        run: |
+          python3 --version
+          python3 -m unittest discover --start-directory scripts --pattern 'test_*.py'
+
       - name: Build hardened image
         run: docker build --tag marketguard:ci .
 
