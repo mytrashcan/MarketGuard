@@ -20,7 +20,7 @@ from pathlib import Path
 CODE = re.compile(r"\d{6}")
 MINIMUM_SYMBOLS = 2000
 MINIMUM_SECTOR_COVERAGE = 0.8
-MINIMUM_RETENTION_MINUTES = 8 * 60
+MINIMUM_RETENTION_MINUTES = 9 * 60  # the checklist allows the after-close check until 18:00 KST
 CONTAINER_DATA_DIR = "/data"
 APP_SERVICE = "app"
 # Settings that must be non-empty. Labels only, so no value is ever formatted into output.
@@ -176,7 +176,7 @@ def check_settings(settings: Settings, report: Report) -> None:
     minutes = duration_minutes(settings.value("SNAPSHOT_RETENTION") or "90m")
     report.check(minutes is not None and minutes >= MINIMUM_RETENTION_MINUTES,
                  "snapshot retention covers a whole session for the after-close check "
-                 f"(set SNAPSHOT_RETENTION=9h; need at least {MINIMUM_RETENTION_MINUTES // 60}h)")
+                 f"(set SNAPSHOT_RETENTION=9h)")
 
 
 def check_data(settings: Settings, root: Path, report: Report) -> tuple[int, float]:

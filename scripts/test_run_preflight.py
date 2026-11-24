@@ -73,9 +73,10 @@ class SettingsTest(unittest.TestCase):
     def test_accepts_a_complete_configuration_and_requires_long_retention(self):
         report, _ = quietly(preflight.check_settings, preflight.Settings(COMPLETE, {}, None, "test"))
         self.assertFalse(report.failed)
-        report, _ = quietly(preflight.check_settings,
-                            preflight.Settings({**COMPLETE, "SNAPSHOT_RETENTION": "90m"}, {}, None, "test"))
-        self.assertTrue(report.failed)
+        for too_short in ("90m", "8h"):  # the checklist allows the check until 18:00, nine hours after the open
+            report, _ = quietly(preflight.check_settings,
+                                preflight.Settings({**COMPLETE, "SNAPSHOT_RETENTION": too_short}, {}, None, "test"))
+            self.assertTrue(report.failed)
 
     def test_never_prints_setting_values(self):
         secret = "s3cr3t-value"
